@@ -18,9 +18,31 @@ permissions:
   contents: read
 
 jobs:
-  media-provider-tests:
+  discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    outputs:
+      tests: ${{ steps.files.outputs.tests }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Discover media-use tests
+        id: files
+        shell: bash
+        run: |
+          set -euo pipefail
+          TESTS=$(find skills/media-use -type f -name "*.test.mjs" | sort | jq -R -s -c 'split("\n")[:-1]')
+          echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
+
+  media-provider-tests:
+    needs: discover
+    name: Test ${{ matrix.test }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJSON(needs.discover.outputs.tests) }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -30,16 +52,5 @@ jobs:
         with:
           node-version: 22
 
-      - name: Run skill test files independently
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t SKILLS_TESTS < <(find skills -type f -name "*.test.mjs" | sort)
-          for test_file in "${SKILLS_TESTS[@]}"; do
-            if ! node --test "$test_file" > /tmp/test-file.log 2>&1; then
-              echo "::error file=$test_file::Skill test file failed"
-              cat /tmp/test-file.log
-              exit 1
-            fi
-          done
-          echo "All ${#SKILLS_TESTS[@]} skill test files passed."
+      - name: Run test file
+        run: node --test "${{ matrix.test }}"
