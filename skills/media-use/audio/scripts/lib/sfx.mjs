@@ -69,7 +69,7 @@ async function retrieveFromHeyGen({ name, headers, hyperframesDir }) {
 function resolveFromBundle({ name, lookup, sfxLibDir, hyperframesDir }) {
   if (!lookup) return { record: null, error: "bundled library unavailable" };
   const hit = lookup.get(name) ?? lookup.get(slug(name));
-  if (!hit) return { record: null, error: "no bundled match" };
+  if (!hit) return { record: null, error: "not in bundled library" };
 
   const src = join(sfxLibDir, hit.file);
   if (!existsSync(src)) {
