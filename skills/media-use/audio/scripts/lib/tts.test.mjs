@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, chmodSync, rmSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  chooseElevenLabsModel,
   parseFfmpegDurationBanner,
   ffprobeDuration,
-  synthesizeOne,
+  synthesizeElevenLabs,
   synthesizeHeygen,
   synthResult,
 } from "./tts.mjs";
@@ -32,16 +33,7 @@ test("parseFfmpegDurationBanner returns NaN when there is no Duration line", () 
   assert.ok(Number.isNaN(parseFfmpegDurationBanner(undefined)));
 });
 
-// Regression for the actual bug: ffprobeDuration used to collapse "ffprobe
-// binary is missing" (ENOENT — the "essentials"-style Windows ffmpeg build
-// with no ffprobe.exe) and "file is genuinely unreadable" into the same NaN,
-// giving audio.mjs no way to tell "measure differently" from "give up".
-//
-// Builds an isolated PATH containing only a fake `ffmpeg` stub (no `ffprobe`
-// at all) so ffprobeDuration's spawnSync("ffprobe", ...) call ENOENTs for
-// real, then verifies it recovers the duration via the ffmpeg fallback
-// instead of returning NaN.
-test("ffprobeDuration falls back to ffmpeg when the ffprobe binary itself is missing", () => {
+test("ffprobeDuration falls back to ffmpeg when ffprobe is missing", () => {
   const dir = mkdtempSync(join(tmpdir(), "tts-ffprobe-fallback-"));
   const fakeFfmpeg = join(dir, "ffmpeg");
   writeFileSync(
@@ -51,7 +43,7 @@ test("ffprobeDuration falls back to ffmpeg when the ffprobe binary itself is mis
   chmodSync(fakeFfmpeg, 0o755);
   const originalPath = process.env.PATH;
   try {
-    process.env.PATH = dir; // only the fake ffmpeg resolves; no real ffprobe on this PATH
+    process.env.PATH = dir;
     assert.equal(ffprobeDuration("/does/not/matter.wav"), 2.5);
   } finally {
     process.env.PATH = originalPath;
@@ -63,7 +55,7 @@ test("ffprobeDuration returns NaN when neither ffprobe nor ffmpeg resolve", () =
   const dir = mkdtempSync(join(tmpdir(), "tts-no-binaries-"));
   const originalPath = process.env.PATH;
   try {
-    process.env.PATH = dir; // empty directory — nothing resolves
+    process.env.PATH = dir;
     assert.ok(Number.isNaN(ffprobeDuration("/does/not/matter.wav")));
   } finally {
     process.env.PATH = originalPath;
@@ -71,30 +63,79 @@ test("ffprobeDuration returns NaN when neither ffprobe nor ffmpeg resolve", () =
   }
 });
 
-test("synthesizeOne(elevenlabs) creates the output dir before writing", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "tts-el-mkdir-"));
-  const wavAbs = join(dir, "assets", "voice", "line-0.wav"); // nested, not yet created
-  const savedKey = process.env.ELEVENLABS_API_KEY;
+test("ElevenLabs selects Flash v2.5 for Vietnamese", () => {
+  assert.equal(chooseElevenLabsModel("vi"), "eleven_flash_v2_5");
+  assert.equal(chooseElevenLabsModel("vi-VN"), "eleven_flash_v2_5");
+  assert.equal(chooseElevenLabsModel("en"), "eleven_multilingual_v2");
+});
+
+test("synthesizeElevenLabs uses REST directly and writes the transcoded output", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tts-elevenlabs-"));
+  const wavAbs = join(dir, "assets", "voice", "line-0.wav");
+  let requestUrl;
+  let requestOptions;
   try {
-    // Unset the key so the Python side fails fast — the mkdir must run before
-    // the spawn regardless, which is what this guards.
-    delete process.env.ELEVENLABS_API_KEY;
-    await synthesizeOne({
-      provider: "elevenlabs",
-      text: "hi",
-      voiceId: "v",
-      wavAbs,
-      hyperframesDir: dir,
-    });
-    assert.ok(existsSync(dirname(wavAbs)), "output directory should be created");
+    const result = await synthesizeElevenLabs(
+      {
+        text: "Xin chào",
+        voiceId: "voice-test",
+        lang: "vi",
+        speed: 1.1,
+        wavAbs,
+      },
+      {
+        apiKey: "test-key",
+        fetch: async (url, options) => {
+          requestUrl = String(url);
+          requestOptions = options;
+          return {
+            ok: true,
+            status: 200,
+            async arrayBuffer() {
+              return Uint8Array.from([73, 68, 51]).buffer;
+            },
+          };
+        },
+        transcodeToWav: (_bytes, dest) => {
+          writeFileSync(dest, "RIFF-fake");
+          return true;
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+    assert.ok(existsSync(wavAbs));
+    const url = new URL(requestUrl);
+    assert.equal(url.pathname, "/v1/text-to-speech/voice-test");
+    assert.equal(requestOptions.headers["xi-api-key"], "test-key");
+    const body = JSON.parse(requestOptions.body);
+    assert.equal(body.model_id, "eleven_flash_v2_5");
+    assert.equal(body.language_code, "vi");
+    assert.equal(body.voice_settings.speed, 1.1);
   } finally {
-    if (savedKey === undefined) delete process.env.ELEVENLABS_API_KEY;
-    else process.env.ELEVENLABS_API_KEY = savedKey;
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("synthesizeHeygen surfaces a thrown HTTP error (e.g. 402) instead of swallowing it", async () => {
+test("synthesizeElevenLabs surfaces HTTP errors", async () => {
+  const result = await synthesizeElevenLabs(
+    { text: "hi", voiceId: "v", lang: "en", speed: 1, wavAbs: "/tmp/none.wav" },
+    {
+      apiKey: "test-key",
+      fetch: async () => ({
+        ok: false,
+        status: 402,
+        async text() {
+          return "quota exceeded";
+        },
+      }),
+    },
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.error, /402/);
+  assert.match(result.error, /quota exceeded/);
+});
+
+test("synthesizeHeygen surfaces a thrown HTTP error instead of swallowing it", async () => {
   const res = await synthesizeHeygen(
     { text: "hi", voiceId: "v1", lang: "en", speed: 1, wavAbs: "/tmp/x.wav" },
     {
