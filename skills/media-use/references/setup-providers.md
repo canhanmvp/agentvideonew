@@ -1,80 +1,101 @@
 # Setup and providers — install, auth, RAM ladders, forcing a provider
 
-## Setup — install heygen first (free-usage path)
+## Project environment
 
-Install the HeyGen CLI through its [verified release instructions](https://developers.heygen.com/cli), then run:
+Copy the repository example and add only the keys you use:
 
 ```bash
-heygen update             # free usage needs the OAuth-capable CLI (v0.3.0+)
-heygen auth login --oauth # OAuth = free subscription credits; --api-key bills API credits
+cp .env.example .env
 ```
 
-This unlocks the FREE path for bgm/sfx/image/icon catalog search, TTS (voice), and avatar videos. Sign in with `--oauth` — the free allowance rides on the OAuth session (an API key bills API credits instead). **media-use requires heygen >= v0.3.0 uniformly** (the OAuth free-usage path needs it), so `--doctor` nudges older CLIs to update even for API-key-only use. Before resolving anything, verify setup with:
+```dotenv
+PEXELS_API_KEY=          # stock video search/download
+ELEVENLABS_API_KEY=      # cloud TTS + generated long-tail SFX
+GEMINI_API_KEY=          # optional Google Lyria background music
+```
+
+The provider loader checks `.env` first and accepts `.env.local` as a compatibility fallback. Both files are gitignored. Shell environment variables always take precedence.
+
+Optional tuning:
+
+```dotenv
+ELEVENLABS_VOICE_ID=
+ELEVENLABS_TTS_MODEL=eleven_flash_v2_5
+ELEVENLABS_SFX_MODEL=eleven_text_to_sound_v2
+ELEVENLABS_SFX_PROMPT_INFLUENCE=0.3
+PEXELS_VIDEO_ORIENTATION=portrait
+PEXELS_VIDEO_SIZE=medium
+PEXELS_VIDEO_LOCALE=en-US
+PEXELS_VIDEO_PER_PAGE=40
+```
+
+For Vietnamese TTS, `eleven_flash_v2_5` is selected automatically by the direct media-use provider unless `ELEVENLABS_TTS_MODEL` overrides it.
+
+## HeyGen free-usage path
+
+Install the HeyGen CLI through its verified release instructions, then run:
+
+```bash
+heygen update
+heygen auth login --oauth
+```
+
+OAuth unlocks the web-plan allowance for catalog search, TTS, and avatar video. An API key follows normal API billing. Verify the complete local setup with:
 
 ```bash
 node <SKILL_DIR>/scripts/resolve.mjs --doctor
 ```
 
-## Providers
+## Provider cascades
 
-media-use holds no keys; every external tool owns its auth. Generation is
-centered on the HeyGen CLI free-usage path. Install and authenticate `heygen`
-before resolving bgm/sfx/image/icon/voice/avatar-video. Local tools are opt-in
-alternatives where they exist: mflux for image, Kokoro for voice, Parakeet for
-transcription, and LTX for local video generation. `resolve` spec-checks
-AVAILABLE RAM for those local ladders (`describeModelLadder`); the agent can
-see the ladder and override.
+| Type        | Provider order                                                         |
+| ----------- | ---------------------------------------------------------------------- |
+| `video`     | Pexels stock search → HeyGen avatar generation → local LTX             |
+| `voice`     | HeyGen TTS → ElevenLabs TTS → local Kokoro                             |
+| `sfx`       | HeyGen retrieval → bundled SFX → ElevenLabs generation                 |
+| `bgm`       | HeyGen retrieval; without HeyGen, Google Lyria → local MusicGen        |
+| `image`     | HeyGen search → local mflux → Codex image generation                   |
+| `icon`      | HeyGen asset search                                                    |
+| `logo`      | svgl → simple-icons → GitHub organization avatar → domain favicon      |
+| `grade/lut` | local presets, parameterized correction, deterministic cube generation |
 
-| Type      | Provider / path                                                                                                                                                               |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| bgm/sfx   | heygen catalog free-usage path                                                                                                                                                |
-| image     | heygen search free-usage path; optional local mflux; codex `image_gen` upsell                                                                                                 |
-| voice     | heygen tts free-usage path; optional local **Kokoro** (free, on-device)                                                                                                       |
-| icon      | heygen asset search free-usage path                                                                                                                                           |
-| logo      | svgl, then simple-icons, then GitHub org avatar, then domain favicon (all free)                                                                                               |
-| grade/lut | local core-preset map, params/CDN look index, deterministic `buildCube` fallback                                                                                              |
-| video     | heygen avatar video free-usage path (sign-in nudge on auth failure); optional local LTX (`videogen` ladder). Image-to-video / photo-avatar / dub stay manual `heygen` recipes |
+Pexels results are downloaded to the project and record the asset page, contributor name, and contributor page in provenance. Applications using the Pexels API must surface a prominent Pexels link and should credit contributors when possible.
 
-Local Kokoro (voice), mflux (image), and LTX (video) run on-device (free,
-private, offline once cached). The `codex` CLI remains the ChatGPT-sub image
-upsell. Cost rule (X4): the agent confirms before an agent-initiated paid call;
-a user-requested one just runs — `heygen.video` is flagged paid (metered free
-allowance) so an agent-initiated `resolve --type video` confirms first.
+Bundled SFX are preferred over generation because they are deterministic and free. ElevenLabs is used for long-tail cues that retrieval and the local library cannot satisfy.
 
-To force a specific generator (e.g. a user says "make this image with codex"),
-pass `--provider codex`: it pins resolution to that provider and skips the
-free-usage default. See `references/operations.md` for the RAM ladders and
-provider recipes.
+## Force or disable providers
 
-`--local-only` skips every network provider, including the free HeyGen ones,
-leaving the project + global cache and any installed local provider. For
-HeyGen-only types, that means no fresh resolve.
+Force one provider with its full name or prefix:
 
-## CLI tools used (what to run, and how to enable each)
+```bash
+node <SKILL_DIR>/scripts/resolve.mjs \
+  --type video \
+  --intent "woman planning her day, portrait 6-10 seconds" \
+  --provider pexels \
+  --project ./my-video
+```
 
-`resolve` auto-cascades; each provider shells one CLI. HeyGen is the
-free-usage path for bgm/sfx/image/icon catalog search, TTS (voice), and avatar
-video, so those capabilities need `heygen` installed and authenticated. Local
-tools are OPT-IN alternatives where they exist; install one to unlock its free,
-private, on-device path instead of or ahead of HeyGen for that type. Only
-`ffmpeg`/`ffprobe` are strictly required for the tool to run at all.
+```bash
+node <SKILL_DIR>/scripts/resolve.mjs \
+  --type voice \
+  --intent "Xin chào, đây là phần giới thiệu." \
+  --provider elevenlabs \
+  --project ./my-video
+```
 
-| Tool               | Serves                                                                          | Install                                                                                                                                       |
-| ------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ffmpeg`/`ffprobe` | adopt probing, smart-grade signalstats, cut, duck bake, loudnorm                | system package (`brew install ffmpeg`)                                                                                                        |
-| `heygen`           | catalog (bgm/sfx/image/icon) + TTS (voice) + avatar video — the free-usage path | install through [verified HeyGen release instructions](https://developers.heygen.com/cli), then `heygen auth login --oauth` (needs >= v0.3.0) |
-| `mflux-generate`   | local image gen (FLUX), best-for-RAM                                            | `uv venv ~/.venvs/mflux && VIRTUAL_ENV=~/.venvs/mflux uv pip install mflux==0.9.6`                                                            |
-| `codex`            | image gen upsell (ChatGPT sub)                                                  | Codex CLI, logged in via ChatGPT (owns its own auth)                                                                                          |
-| `parakeet-mlx`     | local transcription (default ASR, best)                                         | `uv venv ~/.venvs/parakeet && VIRTUAL_ENV=~/.venvs/parakeet uv pip install parakeet-mlx`                                                      |
-| `ltx-2-mlx`        | local video gen                                                                 | `git clone https://github.com/dgrauet/ltx-2-mlx && cd ltx-2-mlx && uv sync --all-extras`                                                      |
-| `npx hyperframes`  | Kokoro TTS (voice), whisper.cpp (transcribe fallback), remove-background        | via the hyperframes CLI; whisper.cpp is built on first use (Homebrew on macOS, else git+cmake), models download from HuggingFace              |
+`--local-only` skips every network provider, including free Pexels and HeyGen search. Cached project/global assets and installed local providers remain available.
 
-The RAM-graded local-model shortlist + exact per-tier install/invoke lives in
-`scripts/lib/local-models.mjs` (the agent can read `describeModelLadder(cap, specs)`
-to see which model fits this machine). Without a tool on PATH, its provider
-prints a one-line diagnostic to stderr and resolve falls through where another
-provider exists (e.g. no `mflux` -> codex image upsell; no `parakeet-mlx` -> whisper.cpp).
+## Local tools
 
-`heygen asset search` is a pre-launch command hidden from `heygen --help`, but it
-runs; providers tag requests with the allowlisted `X-HeyGen-Client-Source` header
-(v0.3.0+).
+Only `ffmpeg`/`ffprobe` are strictly required for the core media pipeline. Optional local providers:
+
+| Tool               | Serves                                                | Install                               |
+| ------------------ | ----------------------------------------------------- | ------------------------------------- |
+| `ffmpeg`/`ffprobe` | probing, transcode, cut, loudness and duration checks | system package                        |
+| `heygen`           | catalog, TTS and avatar video                         | verified HeyGen CLI, then OAuth login |
+| `mflux-generate`   | local FLUX image generation                           | see `scripts/lib/local-models.mjs`    |
+| `parakeet-mlx`     | local transcription                                   | see `scripts/lib/local-models.mjs`    |
+| `ltx-2-mlx`        | local video generation                                | see `scripts/lib/local-models.mjs`    |
+| `npx hyperframes`  | Kokoro TTS, whisper.cpp fallback, background removal  | HyperFrames CLI                       |
+
+The RAM-graded local-model shortlist and exact invocation commands live in `scripts/lib/local-models.mjs`.

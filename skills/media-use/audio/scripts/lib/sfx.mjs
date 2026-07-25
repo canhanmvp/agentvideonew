@@ -1,98 +1,42 @@
-// sfx.mjs — sound effects for the media audio engine. Provider-gated (NOT a
-// per-cue merge): the decision is made once, by whether HeyGen is configured —
-// mirroring how TTS and BGM degrade.
+// sfx.mjs — sound effects for the shared audio engine.
 //
-//   HeyGen credential present  →  retrieve EVERY cue from HeyGen's audio library
-//        (/v3/audio/sounds, type=sound_effects, min_score=0.4). The bundled
-//        library is NOT consulted.
-//   HeyGen credential absent   →  resolve cues against the bundled 21-file
-//        library (assets/sfx/manifest.json), copying matched files into the
-//        project. Offline, deterministic, free.
+// Per distinct cue name the cascade is:
+//   1. HeyGen catalog retrieval when authenticated
+//   2. bundled deterministic SFX library
+//   3. ElevenLabs text-to-sound generation when ELEVENLABS_API_KEY is present
 //
-// A cue that matches nothing is skipped (recorded as an anomaly); SFX never
-// blocks a render. Every cue sits at volume ~0.35, under voice + BGM.
+// A missing effect never blocks a render. Resolved names are cached within the
+// run so the same asset can be reused by multiple scene/line ids.
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { downloadTo, searchSounds } from "./heygen.mjs";
+import { ffprobeDuration } from "./tts.mjs";
+import { elevenLabsSfxAvailable, generateElevenLabsSfx } from "./elevenlabs-sfx.mjs";
 
 const SFX_VOLUME = 0.35;
 const slug = (s) =>
-  s
+  String(s)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40) || "x";
 const r3 = (x) => Number(x.toFixed(3));
 
-// cues: [{ id, name }] (id = the line/frame/scene the cue fires in). Returns
-// { sfx: [{ id, name, file, source, offset_s, duration_s, volume }], anomalies }.
-export async function resolveSfx({ cues, heygenOK, headers, hyperframesDir, sfxLibDir }) {
-  const sfx = [];
-  const anomalies = [];
-  const destDir = join(hyperframesDir, "assets", "sfx");
-
-  // Dedupe identical (id,name) cues — the same effect named twice in one line
-  // downloads/copies once.
-  const seen = new Set();
-  const uniq = cues.filter((c) => {
-    const k = `${c.id}:${c.name}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-
-  if (heygenOK) {
-    for (const { id, name } of uniq) {
-      try {
-        // SFX hits score low (~0.5–0.67), below the API's default 0.7 which
-        // silently drops most named cues — floor to 0.4. (BGM/music score high
-        // and keep the default.)
-        const results = await searchSounds(name, "sound_effects", headers, {
-          limit: 3,
-          minScore: 0.4,
-        });
-        if (!results.length) {
-          anomalies.push(`sfx "${name}" (id ${id}): no HeyGen match — skipped`);
-          continue;
-        }
-        const top = results[0];
-        const file = `assets/sfx/${slug(name)}.mp3`;
-        await downloadTo(top.audio_url, join(hyperframesDir, file));
-        sfx.push({
-          id,
-          name,
-          file,
-          source: "heygen",
-          offset_s: 0,
-          duration_s: typeof top.duration === "number" ? r3(top.duration) : 1.0,
-          volume: SFX_VOLUME,
-        });
-      } catch (e) {
-        anomalies.push(`sfx "${name}" (id ${id}): retrieval failed — ${e.message}`);
-      }
-    }
-    return { sfx, anomalies };
-  }
-
-  // ── offline: bundled library ──
+function loadBundledLookup(sfxLibDir) {
   const manifestPath = join(sfxLibDir, "manifest.json");
-  if (!existsSync(manifestPath)) {
-    if (uniq.length)
-      anomalies.push(`no HeyGen credential and no SFX library at ${sfxLibDir} — all cues dropped`);
-    return { sfx, anomalies };
-  }
+  if (!existsSync(manifestPath))
+    return { byKey: null, error: `manifest missing at ${manifestPath}` };
+
   let manifest;
   try {
     manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  } catch (e) {
-    anomalies.push(`SFX manifest parse failed (${e.message}) — all cues dropped`);
-    return { sfx, anomalies };
+  } catch (error) {
+    return { byKey: null, error: `manifest parse failed: ${error.message}` };
   }
-  // Build lookups: by manifest key, by file basename, and by slug of either, so
-  // a cue can name "whoosh", "whoosh.mp3", or "ui click" (→ slug match).
+
   const byKey = new Map();
-  for (const [key, entry] of Object.entries(manifest)) {
+  for (const [key, entry] of Object.entries(manifest || {})) {
     if (!entry?.file || !isFinite(entry.duration)) continue;
     const rec = { key, file: entry.file, duration: entry.duration };
     byKey.set(key, rec);
@@ -100,44 +44,152 @@ export async function resolveSfx({ cues, heygenOK, headers, hyperframesDir, sfxL
     byKey.set(slug(key), rec);
     byKey.set(slug(entry.file.replace(/\.\w+$/, "")), rec);
   }
-  mkdirSync(destDir, { recursive: true });
-  for (const { id, name } of uniq) {
-    const hit = byKey.get(name) ?? byKey.get(slug(name));
-    if (!hit) {
-      const known = [...new Set([...byKey.values()].map((v) => v.key))].slice(0, 8).join(", ");
-      anomalies.push(
-        `sfx "${name}" (id ${id}): not in bundled library — skipped (have: ${known}…)`,
-      );
-      continue;
-    }
-    const src = join(sfxLibDir, hit.file);
-    const destRel = `assets/sfx/${hit.file}`;
-    const dest = join(hyperframesDir, destRel);
-    // The bundled library may be incomplete: some installs of the skill ship
-    // manifest.json without the actual mp3s. Pushing an sfx entry that points at
-    // a file we never copied produces a dangling reference that silently drops
-    // downstream ("not on disk"). Surface it as a loud anomaly and skip the cue
-    // instead, so the audio_meta never references a missing file.
-    if (!existsSync(dest)) {
-      if (!existsSync(src)) {
-        anomalies.push(
-          `sfx "${name}" (id ${id}): bundled file ${hit.file} missing from the offline ` +
-            `library (${sfxLibDir}) — skipped. Reinstall the media-use skill to ` +
-            `restore assets/sfx/*.mp3, or configure a HeyGen credential for retrieval.`,
-        );
-        continue;
-      }
-      copyFileSync(src, dest);
-    }
-    sfx.push({
-      id,
+  return { byKey, error: null };
+}
+
+async function retrieveFromHeyGen({ name, headers, hyperframesDir }) {
+  const results = await searchSounds(name, "sound_effects", headers, {
+    limit: 3,
+    minScore: 0.4,
+  });
+  if (!results.length) return null;
+  const top = results[0];
+  const file = `assets/sfx/${slug(name)}.mp3`;
+  await downloadTo(top.audio_url, join(hyperframesDir, file));
+  return {
+    name,
+    file,
+    source: "heygen",
+    offset_s: 0,
+    duration_s: typeof top.duration === "number" ? r3(top.duration) : 1.0,
+    volume: SFX_VOLUME,
+  };
+}
+
+function resolveFromBundle({ name, lookup, sfxLibDir, hyperframesDir }) {
+  if (!lookup) return { record: null, error: "bundled library unavailable" };
+  const hit = lookup.get(name) ?? lookup.get(slug(name));
+  if (!hit) return { record: null, error: "not in bundled library" };
+
+  const src = join(sfxLibDir, hit.file);
+  if (!existsSync(src)) {
+    return {
+      record: null,
+      error:
+        `bundled file ${hit.file} missing from ${sfxLibDir}; reinstall the media-use skill ` +
+        "or configure a cloud SFX provider",
+    };
+  }
+  const file = `assets/sfx/${hit.file}`;
+  const dest = join(hyperframesDir, file);
+  mkdirSync(join(hyperframesDir, "assets", "sfx"), { recursive: true });
+  if (!existsSync(dest)) copyFileSync(src, dest);
+  return {
+    record: {
       name,
-      file: destRel,
+      file,
       source: "local",
       offset_s: 0,
       duration_s: r3(hit.duration),
       volume: SFX_VOLUME,
-    });
+    },
+    error: null,
+  };
+}
+
+async function generateFromElevenLabs({ name, hyperframesDir, generate, probe }) {
+  const generated = await generate({ text: name });
+  const file = `assets/sfx/${slug(name)}.mp3`;
+  const dest = join(hyperframesDir, file);
+  mkdirSync(join(hyperframesDir, "assets", "sfx"), { recursive: true });
+  writeFileSync(dest, generated.bytes);
+  const measured = probe(dest);
+  const duration =
+    Number.isFinite(measured) && measured > 0
+      ? measured
+      : Number.isFinite(generated.requestedDuration)
+        ? generated.requestedDuration
+        : 1.0;
+  return {
+    name,
+    file,
+    source: "elevenlabs",
+    offset_s: 0,
+    duration_s: r3(duration),
+    volume: SFX_VOLUME,
+  };
+}
+
+// cues: [{ id, name }] (id = the line/frame/scene the cue fires in). Returns
+// { sfx: [{ id, name, file, source, offset_s, duration_s, volume }], anomalies }.
+export async function resolveSfx(
+  { cues, heygenOK, headers, hyperframesDir, sfxLibDir },
+  deps = {},
+) {
+  const sfx = [];
+  const anomalies = [];
+  const seen = new Set();
+  const uniq = (cues || []).filter((cue) => {
+    const key = `${cue.id}:${cue.name}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const { byKey, error: bundleError } = loadBundledLookup(sfxLibDir);
+  const generatedAvailable = deps.elevenlabsOK ?? elevenLabsSfxAvailable();
+  const generate = deps.generateElevenLabsSfx || generateElevenLabsSfx;
+  const probe = deps.ffprobeDuration || ffprobeDuration;
+  const byName = new Map();
+
+  for (const { id, name } of uniq) {
+    const cacheKey = slug(name);
+    const cached = byName.get(cacheKey);
+    if (cached) {
+      sfx.push({ ...cached, id, name });
+      continue;
+    }
+
+    let record = null;
+    const failures = [];
+
+    if (heygenOK) {
+      try {
+        record = await retrieveFromHeyGen({ name, headers, hyperframesDir });
+        if (!record) failures.push("no HeyGen match");
+      } catch (error) {
+        failures.push(`HeyGen retrieval failed: ${error.message}`);
+      }
+    }
+
+    if (!record) {
+      const local = resolveFromBundle({
+        name,
+        lookup: byKey,
+        sfxLibDir,
+        hyperframesDir,
+      });
+      record = local.record;
+      if (!record && local.error) failures.push(local.error);
+    }
+
+    if (!record && generatedAvailable) {
+      try {
+        record = await generateFromElevenLabs({ name, hyperframesDir, generate, probe });
+      } catch (error) {
+        failures.push(`ElevenLabs generation failed: ${error.message}`);
+      }
+    }
+
+    if (!record) {
+      const details = [...new Set([bundleError, ...failures].filter(Boolean))].join("; ");
+      anomalies.push(`sfx "${name}" (id ${id}): unresolved${details ? ` — ${details}` : ""}`);
+      continue;
+    }
+
+    byName.set(cacheKey, record);
+    sfx.push({ ...record, id, name });
   }
+
   return { sfx, anomalies };
 }
