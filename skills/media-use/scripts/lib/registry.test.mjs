@@ -30,7 +30,7 @@ test("listTypes exposes the v2 media types", () => {
   }
 });
 
-test("heygen provider is first for every type it serves", () => {
+test("heygen provider is first for every catalog type it serves", () => {
   for (const t of ["bgm", "sfx", "image", "icon"]) {
     const first = getProviders(t)[0];
     assert.ok(first, `no enabled provider for ${t}`);
@@ -38,9 +38,9 @@ test("heygen provider is first for every type it serves", () => {
   }
 });
 
-test("sanctioned providers only: heygen, local mflux/kokoro/ltx, codex, design spec, logo tiers", () => {
+test("registry contains only sanctioned providers", () => {
   const allowed =
-    /^heygen|^bundled\.sfx$|^mflux\.local$|^kokoro\.local$|^ltx\.local$|^codex\.image_gen$|^design_spec$|^svgl$|^simple-icons$|^github\.avatar$|^favicon\.ddg$|^color_grade\.local$|^cube_lut\.local$/;
+    /^heygen|^pexels\.video\.search$|^elevenlabs\.(tts|sfx)$|^bundled\.sfx$|^mflux\.local$|^kokoro\.local$|^ltx\.local$|^codex\.image_gen$|^design_spec$|^svgl$|^simple-icons$|^github\.avatar$|^favicon\.ddg$|^color_grade\.local$|^cube_lut\.local$/;
   for (const t of listTypes()) {
     for (const p of getProviders(t)) {
       assert.ok(allowed.test(p.name), `${t} lists unsanctioned provider: ${p.name}`);
@@ -61,34 +61,51 @@ test("image cascade: heygen catalog, then local mflux, then the codex upsell", (
   assert.ok(codex.network, "codex is network (skipped under --local-only)");
 });
 
-test("voice cascade: HeyGen TTS first, Kokoro remains the local fallback", () => {
+test("voice cascade: HeyGen, ElevenLabs, then local Kokoro", () => {
   const ps = getProviders("voice");
-  assert.equal(ps[0].name, "heygen.tts", "HeyGen TTS is first when credentials exist");
-  assert.ok(ps[0].network, "HeyGen TTS is network (skipped under --local-only)");
-  assert.ok(ps[0].paid, "HeyGen TTS may bill after the OAuth free allowance");
-  assert.equal(ps[1].name, "kokoro.local", "local Kokoro is the offline fallback");
-  assert.ok(!ps[1].network, "local Kokoro kept under --local-only");
-  assert.ok(!ps[1].paid, "local Kokoro is free");
+  assert.deepEqual(providerNamesFor("voice"), [
+    "heygen.tts",
+    "elevenlabs.tts",
+    "kokoro.local",
+  ]);
+  assert.ok(ps[0].network && ps[0].paid, "HeyGen TTS is a metered network provider");
+  assert.ok(ps[1].network && ps[1].paid, "ElevenLabs TTS is a metered network provider");
+  assert.ok(!ps[2].network && !ps[2].paid, "Kokoro remains the free offline fallback");
 });
 
-test("video cascade: HeyGen first, LTX local fallback, generate-only", async () => {
-  assert.deepEqual(providerNamesFor("video"), ["heygen.video", "ltx.local"]);
+test("video cascade: Pexels stock search, HeyGen generation, LTX local fallback", async () => {
+  assert.deepEqual(providerNamesFor("video"), [
+    "pexels.video.search",
+    "heygen.video",
+    "ltx.local",
+  ]);
+  assert.equal(providerMatches("video", "pexels"), true);
   assert.equal(providerMatches("video", "ltx.local"), true);
 
   const ps = getProviders("video");
-  assert.ok(ps[0].network, "HeyGen video is network (skipped under --local-only)");
-  assert.ok(ps[0].paid, "HeyGen video may bill after the OAuth free allowance");
-  assert.ok(!ps[1].network, "local LTX is kept under --local-only");
-  assert.equal(await runCapability("video", "search", "x", {}), null);
+  assert.ok(ps[0].network && !ps[0].paid, "Pexels is a free network search provider");
+  assert.equal(typeof ps[0].search, "function");
+  assert.ok(ps[1].network && ps[1].paid, "HeyGen video is metered network generation");
+  assert.ok(!ps[2].network, "local LTX is kept under --local-only");
+  assert.equal(
+    await runCapability("video", "search", "x", { localOnly: true }),
+    null,
+    "offline search skips Pexels and does not call the network",
+  );
 });
 
-test("sfx cascade: HeyGen catalog first, bundled library remains the local fallback", () => {
+test("sfx cascade: retrieval, bundled library, then ElevenLabs generation", () => {
   const ps = getProviders("sfx");
-  assert.equal(ps[0].name, "heygen.audio.sounds");
+  assert.deepEqual(providerNamesFor("sfx"), [
+    "heygen.audio.sounds",
+    "bundled.sfx",
+    "elevenlabs.sfx",
+  ]);
   assert.ok(ps[0].network, "HeyGen SFX catalog is network-only");
-  assert.equal(ps[1].name, "bundled.sfx");
   assert.equal(typeof ps[1].search, "function");
   assert.ok(!ps[1].network, "bundled SFX remain available offline");
+  assert.equal(typeof ps[2].generate, "function");
+  assert.ok(ps[2].network && ps[2].paid, "ElevenLabs generation is metered network usage");
 });
 
 test("ctx.provider forces one generator (e.g. 'make an image WITH codex')", async () => {
@@ -97,20 +114,14 @@ test("ctx.provider forces one generator (e.g. 'make an image WITH codex')", asyn
     { name: "mflux.local", generate: async () => ({ hit: "local" }) },
     { name: "codex.image_gen", network: true, generate: async () => ({ hit: "codex" }) },
   ];
-  // no override: local wins (first generate to return non-null)
   assert.deepEqual(await runProviders(providers, "generate", "x", {}), { hit: "local" });
-  // override to codex: skip local, use codex even though local would have worked
   assert.deepEqual(await runProviders(providers, "generate", "x", { provider: "codex" }), {
     hit: "codex",
   });
-  // override matches the full name too
   assert.deepEqual(
     await runProviders(providers, "generate", "x", { provider: "codex.image_gen" }),
     { hit: "codex" },
   );
-  // --local-only wins even over a forced network provider: no network call,
-  // clean miss (the caller surfaces the conflict). A forced LOCAL provider under
-  // --local-only still runs.
   assert.equal(
     await runProviders(providers, "generate", "x", { provider: "codex", localOnly: true }),
     null,
@@ -169,7 +180,7 @@ test("runProviders calls providers in order and returns the first non-null", asy
 
 test("runProviders skips providers missing the requested capability", async () => {
   const providers = [
-    { name: "a", enabled: true /* no search */ },
+    { name: "a", enabled: true },
     { name: "b", enabled: true, search: async () => ({ hit: "b" }) },
   ];
   const res = await runProviders(providers, "search", "x", {});
@@ -189,7 +200,7 @@ test("--local-only skips every network provider (even free remote ones)", async 
   let remoteRan = false;
   const providers = [
     {
-      name: "heygen",
+      name: "remote",
       network: true,
       search: async () => {
         remoteRan = true;
