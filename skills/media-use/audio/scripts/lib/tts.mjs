@@ -1,39 +1,25 @@
-// tts.mjs — multi-provider TTS for the media audio engine. The provider chain,
-// auto-detected from env, is the one documented in ../SKILL.md:
+// tts.mjs — multi-provider TTS for the media audio engine.
 //
-//   1. HeyGen (Starfish)  — $HEYGEN_API_KEY / $HYPERFRAMES_API_KEY / ~/.heygen.
-//        Direct v3 REST (NOT `hyperframes tts`, which in the published build is
-//        Kokoro-only and silently ignores a HeyGen key). Returns word_timestamps
-//        in the same call, so no separate transcribe pass.
-//   2. ElevenLabs         — $ELEVENLABS_API_KEY + `pip install elevenlabs`. No
-//        word timings → caller chains transcribeWav().
-//   3. Kokoro-82M (local) — always available, via the published `hyperframes tts`
-//        CLI. No word timings → caller chains transcribeWav().
-//
-// "HeyGen available" is decided by CREDENTIAL presence (heygenCredential), never
-// by the CLI — see the note above.
+// Provider order:
+//   1. HeyGen Starfish — native word timestamps
+//   2. ElevenLabs REST — cloud fallback, no Python SDK required
+//   3. Kokoro local — offline fallback
 
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { heygenAuthHeaders, heygenCredential, heygenJSON } from "./heygen.mjs";
-import { pythonInvocation } from "./python.mjs";
 
 // ── provider detection ────────────────────────────────────────────────────────
 export function heygenAvailable() {
   return heygenCredential() !== null;
 }
+
 export function elevenlabsAvailable() {
-  if (!process.env.ELEVENLABS_API_KEY) return false;
-  const { cmd, args } = pythonInvocation(["-c", "import elevenlabs"]);
-  const r = spawnSync(cmd, args, {
-    stdio: "ignore",
-  });
-  return r.status === 0;
+  return Boolean(process.env.ELEVENLABS_API_KEY);
 }
 
-// First available provider wins; an explicit choice is honored (and validated).
 export function pickProvider(userProvider) {
   if (userProvider) {
     if (!["heygen", "elevenlabs", "kokoro"].includes(userProvider))
@@ -50,21 +36,15 @@ export function pickProvider(userProvider) {
 }
 
 // ── voice resolution ──────────────────────────────────────────────────────────
-// HeyGen /v3/voices/speech only accepts STARFISH voice_ids; auto-pick the first
-// English public starfish voice when none is pinned. ElevenLabs/Kokoro have
-// their own defaults.
 export async function resolveVoiceId({ provider, userVoice, lang = "en" }) {
   if (userVoice) return userVoice;
-  if (provider === "elevenlabs") return "21m00Tcm4TlvDq8ikWAM"; // Rachel
+  if (provider === "elevenlabs")
+    return process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM"; // Rachel
   if (provider === "kokoro") {
     if (lang === "en") return "am_michael";
     throw new Error("Kokoro non-English needs an explicit --voice (see references/tts.md)");
   }
-  // heygen — pin a fixed English default so the choice is deterministic. The old
-  // "first English voice the API returns" drifts whenever HeyGen re-sorts the
-  // public catalog. Marcia (mature, low female). Override with --voice / request.voice.
-  if (lang === "en") return "05f19352e8f74b0392a8f411eba40de1"; // Marcia · English · female
-  // Non-English: no fixed default — fall back to the first matching catalog voice.
+  if (lang === "en") return "05f19352e8f74b0392a8f411eba40de1"; // Marcia
   const payload = await heygenJSON(`/voices?engine=starfish&type=public&limit=50`, {
     headers: heygenAuthHeaders(),
   });
@@ -72,6 +52,11 @@ export async function resolveVoiceId({ provider, userVoice, lang = "en" }) {
   const pick = voices.find((v) => v.language === "English") ?? voices[0];
   if (!pick) throw new Error("no public starfish voice to default to — pass --voice");
   return pick.voice_id;
+}
+
+export function chooseElevenLabsModel(lang = "en", configured = process.env.ELEVENLABS_TTS_MODEL) {
+  if (configured) return configured;
+  return /^vi(?:-|$)/i.test(String(lang)) ? "eleven_flash_v2_5" : "eleven_multilingual_v2";
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -84,11 +69,6 @@ export function withWordIds(words) {
   }));
 }
 
-// `ffmpeg -i <file>` prints a `Duration: HH:MM:SS.ms` line to stderr even
-// though it exits non-zero with no output requested. Parsing pulled out as
-// a pure function so the ENOENT fallback below can be tested without
-// depending on whether ffprobe/ffmpeg are actually installed on the
-// machine running the tests.
 export function parseFfmpegDurationBanner(stderrText) {
   const match = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderrText ?? "");
   if (!match) return NaN;
@@ -96,11 +76,6 @@ export function parseFfmpegDurationBanner(stderrText) {
   return Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
 }
 
-// Some "essentials"-style ffmpeg distributions (common on Windows) ship
-// ffmpeg.exe without ffprobe.exe. ffprobeDuration's caller (audio.mjs)
-// otherwise reads a spurious NaN as "the WAV file is corrupt" and drops an
-// already-successfully-synthesized TTS line, rather than "the tool for
-// measuring it is missing".
 function ffmpegDurationFallback(absPath) {
   const r = spawnSync("ffmpeg", ["-i", absPath], { encoding: "utf8" });
   return parseFfmpegDurationBanner(r.stderr);
@@ -150,10 +125,6 @@ export function resolveSpawnCommand(
   if (cmd !== "npx" || platform !== "win32") {
     return { cmd, args, opts: { stdio: "ignore", ...opts } };
   }
-
-  // On Windows, npx resolves to npx.cmd, which Node cannot execute directly.
-  // Avoid `shell:true` and the .cmd shim entirely by invoking npm's JS CLI with
-  // node, preserving request-provided values as argv data instead of shell text.
   const nodeExecPath = env.npm_node_execpath || process.execPath;
   const npxCliPath = resolveNpxCliPath(env.npm_execpath, nodeExecPath, pathExists);
   if (!npxCliPath) return null;
@@ -164,12 +135,7 @@ export function resolveSpawnCommand(
   };
 }
 
-// `platform`/`spawnFn` params (default process.platform / the real spawn)
-// exist so tests can exercise the win32 branch without mocking node:child_process
-// (its ESM exports are non-configurable, so mock.method can't patch it).
-// One-shot so a whole batch of TTS lines doesn't repeat the same diagnostic.
 let _warnedNpxResolution = false;
-/** Test-only: reset the one-shot npx-resolution warning latch. */
 export function _resetNpxResolutionWarnForTests() {
   _warnedNpxResolution = false;
 }
@@ -185,9 +151,6 @@ export function spawnP(
 ) {
   const resolved = resolveSpawnCommand(cmd, args, opts, platform, env, pathExists);
   if (!resolved) {
-    // resolveSpawnCommand only returns null for the npx-on-win32 case where
-    // neither npm's configured CLI nor the beside-node fallback exists. Without
-    // this, every call silently returns status:-1 and stdio:"ignore" hides why.
     if (!_warnedNpxResolution) {
       _warnedNpxResolution = true;
       const reason = env.npm_execpath
@@ -196,7 +159,7 @@ export function spawnP(
       console.error(
         `[media-use] Cannot run "${cmd}" on Windows: ${reason}. ` +
           `Every "${cmd}" call is being skipped. Install npm with Node, or run via ` +
-          `\`npx\`/\`npm run\` with a valid npm_execpath.`,
+          "`npx`/`npm run` with a valid npm_execpath.",
       );
     }
     return Promise.resolve({ status: -1 });
@@ -208,7 +171,6 @@ export function spawnP(
   });
 }
 
-// mp3/whatever bytes → wav 44.1k mono at destWav (ffmpeg detects true format).
 function transcodeToWav(bytes, destWav) {
   const td = mkdtempSync(join(tmpdir(), "hf-tts-"));
   const tmp = join(td, "a.mp3");
@@ -223,24 +185,7 @@ function transcodeToWav(bytes, destWav) {
   return ff.status === 0 && existsSync(destWav);
 }
 
-const ELEVENLABS_PY = `
-import os, sys
-from elevenlabs.client import ElevenLabs
-from elevenlabs import save
-client = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"])
-text = open(sys.argv[1]).read()
-audio = client.text_to_speech.convert(
-    text=text, voice_id=sys.argv[2],
-    model_id="eleven_multilingual_v2", output_format="mp3_44100_128",
-)
-save(audio, sys.argv[3])
-`;
-
-// ── synthesize one line ───────────────────────────────────────────────────────
-// Writes wav at wavAbs. Returns { ok, words, error } — words is the raw
-// [{text,start,end}] array for HeyGen (native), or null for ElevenLabs/Kokoro
-// (caller must transcribeWav). Never throws; failures return { ok:false, error }
-// where `error` states WHY (so the caller can surface it, not a bare "TTS failed").
+// ── synthesis ────────────────────────────────────────────────────────────────
 export async function synthesizeOne({
   provider,
   text,
@@ -251,30 +196,9 @@ export async function synthesizeOne({
   hyperframesDir,
 }) {
   if (provider === "heygen") return synthesizeHeygen({ text, voiceId, lang, speed, wavAbs });
-  if (provider === "elevenlabs") {
-    // The Python helper writes straight to wavAbs; unlike heygen (transcodeToWav)
-    // and kokoro (the `hyperframes tts` CLI), it does NOT create the parent dir,
-    // so on a fresh project (no assets/voice/ yet) the save fails and the line is
-    // silently dropped as "TTS failed - omitted". Create it first, like the other
-    // providers do. Guarded so a mkdir failure (EACCES/EROFS) returns
-    // { ok:false } like the rest of this branch rather than throwing (the
-    // function's contract is "never throws; failures return { ok:false }").
-    try {
-      mkdirSync(dirname(wavAbs), { recursive: true });
-    } catch {
-      return { ok: false, words: null };
-    }
-    const { cmd, args } = pythonInvocation([
-      "-c",
-      ELEVENLABS_PY,
-      writeTmpText(text),
-      voiceId,
-      wavAbs,
-    ]);
-    const r = await spawnP(cmd, args, {});
-    return synthResult(r, wavAbs, "elevenlabs (python)");
-  }
-  // kokoro — via the published CLI; --output is relative to the project dir.
+  if (provider === "elevenlabs")
+    return synthesizeElevenLabs({ text, voiceId, lang, speed, wavAbs });
+
   const wavRel = relTo(hyperframesDir, wavAbs);
   const args = ["hyperframes", "tts", writeTmpText(text), "--voice", voiceId, "--output", wavRel];
   if (lang !== "en") args.push("--lang", lang);
@@ -282,8 +206,6 @@ export async function synthesizeOne({
   return synthResult(r, wavAbs, "kokoro (npx hyperframes tts)");
 }
 
-// Shape a spawn result into { ok, words, error }, naming why on failure so the
-// caller surfaces it instead of a bare "TTS failed".
 export function synthResult(r, wavAbs, label) {
   if (r.status === 0 && existsSync(wavAbs)) return { ok: true, words: null };
   const why =
@@ -291,10 +213,60 @@ export function synthResult(r, wavAbs, label) {
   return { ok: false, words: null, error: why };
 }
 
-// `deps` is injectable for tests; production uses the real network/ffmpeg impls.
-// Every failure path returns an `error` string so the caller can surface WHY a
-// line was dropped instead of the bare "TTS failed" that hid the real cause
-// (e.g. an HTTP 402 plan_upgrade_required thrown by heygenJSON was swallowed).
+export async function synthesizeElevenLabs(
+  { text, voiceId, lang = "en", speed = 1, wavAbs },
+  deps = {},
+) {
+  const fetchImpl = deps.fetch ?? fetch;
+  const transcode = deps.transcodeToWav ?? transcodeToWav;
+  const apiKey = deps.apiKey ?? process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) return { ok: false, words: null, error: "ELEVENLABS_API_KEY is not set" };
+
+  try {
+    mkdirSync(dirname(wavAbs), { recursive: true });
+    const modelId = deps.modelId ?? chooseElevenLabsModel(lang);
+    const outputFormat = process.env.ELEVENLABS_TTS_OUTPUT_FORMAT || "mp3_44100_128";
+    const url = new URL(
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
+    );
+    url.searchParams.set("output_format", outputFormat);
+    const body = {
+      text,
+      model_id: modelId,
+      voice_settings: { speed: Math.min(1.2, Math.max(0.7, Number(speed) || 1)) },
+    };
+    const normalizedLang = String(lang).toLowerCase().split("-")[0];
+    if (modelId !== "eleven_multilingual_v2" && normalizedLang !== "en") {
+      body.language_code = normalizedLang;
+    }
+
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "xi-api-key": apiKey,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const detail = response.text ? await response.text().catch(() => "") : "";
+      return {
+        ok: false,
+        words: null,
+        error: `ElevenLabs TTS HTTP ${response.status}${detail ? ` — ${detail.slice(0, 240)}` : ""}`,
+      };
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length) return { ok: false, words: null, error: "ElevenLabs TTS returned empty audio" };
+    if (!transcode(bytes, wavAbs)) {
+      return { ok: false, words: null, error: "wav transcode failed (ffmpeg)" };
+    }
+    return { ok: true, words: null };
+  } catch (error) {
+    return { ok: false, words: null, error: error?.message ? String(error.message) : String(error) };
+  }
+}
+
 export async function synthesizeHeygen({ text, voiceId, lang, speed, wavAbs }, deps = {}) {
   const requestJSON = deps.heygenJSON ?? heygenJSON;
   const authHeaders = deps.heygenAuthHeaders ?? heygenAuthHeaders;
@@ -317,15 +289,9 @@ export async function synthesizeHeygen({ text, voiceId, lang, speed, wavAbs }, d
       return { ok: false, words: null, error: `audio_url fetch failed: HTTP ${res.status}` };
     }
     const bytes = Buffer.from(await res.arrayBuffer());
-    // .wav output → transcode to 44.1k mono; .mp3 → raw bytes (no ffmpeg). The
-    // engine always asks for .wav; the standalone heygen-tts CLI may ask for .mp3.
     if (wavAbs.endsWith(".wav")) {
       if (!transcode(bytes, wavAbs)) {
-        return {
-          ok: false,
-          words: null,
-          error: "wav transcode failed (ffmpeg)",
-        };
+        return { ok: false, words: null, error: "wav transcode failed (ffmpeg)" };
       }
     } else {
       mkdirSync(dirname(wavAbs), { recursive: true });
@@ -334,7 +300,7 @@ export async function synthesizeHeygen({ text, voiceId, lang, speed, wavAbs }, d
     const words = Array.isArray(inner.word_timestamps)
       ? inner.word_timestamps
           .filter((w) => w && typeof w.word === "string" && isFinite(w.start) && isFinite(w.end))
-          .filter((w) => !/^<.*>$/.test(w.word.trim())) // drop <start>/<end> sentinels
+          .filter((w) => !/^<.*>$/.test(w.word.trim()))
           .map((w) => ({ text: w.word, start: w.start, end: w.end }))
       : [];
     return { ok: true, words };
@@ -343,9 +309,6 @@ export async function synthesizeHeygen({ text, voiceId, lang, speed, wavAbs }, d
   }
 }
 
-// ElevenLabs/Kokoro have no word timings — run Whisper over the wav. Returns the
-// flat [{id,text,start,end}] word array, or null. Each call uses a throwaway
-// --dir so parallel scenes don't collide on transcript.json.
 export async function transcribeWav({ wavRel, lang = "en", hyperframesDir }) {
   const model = lang === "en" ? "small.en" : "small";
   const td = mkdtempSync(join(tmpdir(), "hf-trans-"));
@@ -366,13 +329,17 @@ export async function transcribeWav({ wavRel, lang = "en", hyperframesDir }) {
   return words;
 }
 
-// ── tiny local utils ──────────────────────────────────────────────────────────
 function writeTmpText(text) {
   const td = mkdtempSync(join(tmpdir(), "hf-txt-"));
   const p = join(td, "line.txt");
   writeFileSync(p, text);
   return p;
 }
+
 function relTo(base, abs) {
-  return abs.startsWith(base + "/") ? abs.slice(base.length + 1) : abs;
+  const normalizedBase = String(base).replace(/\\/g, "/");
+  const normalizedAbs = String(abs).replace(/\\/g, "/");
+  return normalizedAbs.startsWith(normalizedBase + "/")
+    ? normalizedAbs.slice(normalizedBase.length + 1)
+    : abs;
 }
