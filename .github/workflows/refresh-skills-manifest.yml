@@ -1,0 +1,38 @@
+name: Refresh skills manifest once
+
+on:
+  push:
+    branches:
+      - "feat/stock-audio-providers"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: "feat/stock-audio-providers"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Regenerate manifest and remove this one-shot workflow
+        run: |
+          bun packages/cli/scripts/gen-skills-manifest.ts
+          git rm .github/workflows/refresh-skills-manifest.yml
+
+      - name: Commit refreshed manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add skills-manifest.json
+          git commit -m "chore(media): refresh skills manifest"
+          git push origin HEAD:feat/stock-audio-providers
