@@ -1,6 +1,9 @@
 name: Temporary media provider autofix
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
   push:
     branches:
       - "feat/stock-audio-providers"
@@ -10,7 +13,9 @@ permissions:
 
 jobs:
   format-and-manifest:
-    if: ${{ !contains(github.event.head_commit.message, 'chore(media): apply formatter and refresh skills manifest') }}
+    if: >-
+      github.event_name == 'pull_request' ||
+      !contains(github.event.head_commit.message, 'chore(media): apply formatter and refresh skills manifest')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
