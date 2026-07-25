@@ -38,8 +38,7 @@ export function pickProvider(userProvider) {
 // ── voice resolution ──────────────────────────────────────────────────────────
 export async function resolveVoiceId({ provider, userVoice, lang = "en" }) {
   if (userVoice) return userVoice;
-  if (provider === "elevenlabs")
-    return process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM"; // Rachel
+  if (provider === "elevenlabs") return process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM"; // Rachel
   if (provider === "kokoro") {
     if (lang === "en") return "am_michael";
     throw new Error("Kokoro non-English needs an explicit --voice (see references/tts.md)");
@@ -257,13 +256,18 @@ export async function synthesizeElevenLabs(
       };
     }
     const bytes = Buffer.from(await response.arrayBuffer());
-    if (!bytes.length) return { ok: false, words: null, error: "ElevenLabs TTS returned empty audio" };
+    if (!bytes.length)
+      return { ok: false, words: null, error: "ElevenLabs TTS returned empty audio" };
     if (!transcode(bytes, wavAbs)) {
       return { ok: false, words: null, error: "wav transcode failed (ffmpeg)" };
     }
     return { ok: true, words: null };
   } catch (error) {
-    return { ok: false, words: null, error: error?.message ? String(error.message) : String(error) };
+    return {
+      ok: false,
+      words: null,
+      error: error?.message ? String(error.message) : String(error),
+    };
   }
 }
 

@@ -2,11 +2,11 @@
 
 The shared audio engine selects providers in this order:
 
-| Order | Provider | Trigger | Word timestamps | Output |
-| --- | --- | --- | --- | --- |
-| 1 | HeyGen Starfish | HeyGen OAuth/API credential | Native timestamps | MP3 → WAV |
-| 2 | ElevenLabs | `ELEVENLABS_API_KEY` | Transcribed after synthesis | MP3 → WAV |
-| 3 | Kokoro-82M | Local fallback | Transcribed after synthesis | WAV |
+| Order | Provider        | Trigger                     | Word timestamps             | Output    |
+| ----- | --------------- | --------------------------- | --------------------------- | --------- |
+| 1     | HeyGen Starfish | HeyGen OAuth/API credential | Native timestamps           | MP3 → WAV |
+| 2     | ElevenLabs      | `ELEVENLABS_API_KEY`        | Transcribed after synthesis | MP3 → WAV |
+| 3     | Kokoro-82M      | Local fallback              | Transcribed after synthesis | WAV       |
 
 `npx hyperframes tts` itself remains the local Kokoro command. Full workflows call `audio/scripts/audio.mjs`, which can use all three providers.
 
@@ -36,9 +36,7 @@ Example request:
   "lang": "vi",
   "speed": 1.0,
   "voice": "YOUR_VOICE_ID",
-  "lines": [
-    { "id": "intro", "text": "Xin chào, đây là video được tạo tự động." }
-  ],
+  "lines": [{ "id": "intro", "text": "Xin chào, đây là video được tạo tự động." }],
   "bgm": { "mode": "none" }
 }
 ```
@@ -72,22 +70,22 @@ npx hyperframes tts "Welcome to HyperFrames" -o narration.wav
 
 Common choices:
 
-| Content | Voice |
-| --- | --- |
-| Product demo | `af_heart`, `af_nova` |
-| Tutorial | `am_adam`, `bf_emma` |
-| Marketing | `af_sky`, `am_michael` |
+| Content       | Voice                  |
+| ------------- | ---------------------- |
+| Product demo  | `af_heart`, `af_nova`  |
+| Tutorial      | `am_adam`, `bf_emma`   |
+| Marketing     | `af_sky`, `am_michael` |
 | Documentation | `bf_emma`, `bm_george` |
 
 Run `npx hyperframes tts --list` for the installed set. Non-English Kokoro phonemization may require `espeak-ng`.
 
 ## Provider guidance
 
-| Goal | Provider |
-| --- | --- |
-| Best integrated captions with native word timestamps | HeyGen |
-| Broad cloud voice catalog and Vietnamese support | ElevenLabs |
-| Offline/private iteration | Kokoro |
+| Goal                                                 | Provider   |
+| ---------------------------------------------------- | ---------- |
+| Best integrated captions with native word timestamps | HeyGen     |
+| Broad cloud voice catalog and Vietnamese support     | ElevenLabs |
+| Offline/private iteration                            | Kokoro     |
 
 ## Requirements and failure behavior
 

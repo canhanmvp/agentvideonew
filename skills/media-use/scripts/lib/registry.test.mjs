@@ -63,22 +63,14 @@ test("image cascade: heygen catalog, then local mflux, then the codex upsell", (
 
 test("voice cascade: HeyGen, ElevenLabs, then local Kokoro", () => {
   const ps = getProviders("voice");
-  assert.deepEqual(providerNamesFor("voice"), [
-    "heygen.tts",
-    "elevenlabs.tts",
-    "kokoro.local",
-  ]);
+  assert.deepEqual(providerNamesFor("voice"), ["heygen.tts", "elevenlabs.tts", "kokoro.local"]);
   assert.ok(ps[0].network && ps[0].paid, "HeyGen TTS is a metered network provider");
   assert.ok(ps[1].network && ps[1].paid, "ElevenLabs TTS is a metered network provider");
   assert.ok(!ps[2].network && !ps[2].paid, "Kokoro remains the free offline fallback");
 });
 
 test("video cascade: Pexels stock search, HeyGen generation, LTX local fallback", async () => {
-  assert.deepEqual(providerNamesFor("video"), [
-    "pexels.video.search",
-    "heygen.video",
-    "ltx.local",
-  ]);
+  assert.deepEqual(providerNamesFor("video"), ["pexels.video.search", "heygen.video", "ltx.local"]);
   assert.equal(providerMatches("video", "pexels"), true);
   assert.equal(providerMatches("video", "ltx.local"), true);
 

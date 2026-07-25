@@ -8,13 +8,7 @@
 // A missing effect never blocks a render. Resolved names are cached within the
 // run so the same asset can be reused by multiple scene/line ids.
 
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { downloadTo, searchSounds } from "./heygen.mjs";
 import { ffprobeDuration } from "./tts.mjs";
@@ -31,7 +25,8 @@ const r3 = (x) => Number(x.toFixed(3));
 
 function loadBundledLookup(sfxLibDir) {
   const manifestPath = join(sfxLibDir, "manifest.json");
-  if (!existsSync(manifestPath)) return { byKey: null, error: `manifest missing at ${manifestPath}` };
+  if (!existsSync(manifestPath))
+    return { byKey: null, error: `manifest missing at ${manifestPath}` };
 
   let manifest;
   try {

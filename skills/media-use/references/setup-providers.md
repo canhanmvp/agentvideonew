@@ -48,15 +48,15 @@ node <SKILL_DIR>/scripts/resolve.mjs --doctor
 
 ## Provider cascades
 
-| Type | Provider order |
-| --- | --- |
-| `video` | Pexels stock search → HeyGen avatar generation → local LTX |
-| `voice` | HeyGen TTS → ElevenLabs TTS → local Kokoro |
-| `sfx` | HeyGen retrieval → bundled SFX → ElevenLabs generation |
-| `bgm` | HeyGen retrieval; without HeyGen, Google Lyria → local MusicGen |
-| `image` | HeyGen search → local mflux → Codex image generation |
-| `icon` | HeyGen asset search |
-| `logo` | svgl → simple-icons → GitHub organization avatar → domain favicon |
+| Type        | Provider order                                                         |
+| ----------- | ---------------------------------------------------------------------- |
+| `video`     | Pexels stock search → HeyGen avatar generation → local LTX             |
+| `voice`     | HeyGen TTS → ElevenLabs TTS → local Kokoro                             |
+| `sfx`       | HeyGen retrieval → bundled SFX → ElevenLabs generation                 |
+| `bgm`       | HeyGen retrieval; without HeyGen, Google Lyria → local MusicGen        |
+| `image`     | HeyGen search → local mflux → Codex image generation                   |
+| `icon`      | HeyGen asset search                                                    |
+| `logo`      | svgl → simple-icons → GitHub organization avatar → domain favicon      |
 | `grade/lut` | local presets, parameterized correction, deterministic cube generation |
 
 Pexels results are downloaded to the project and record the asset page, contributor name, and contributor page in provenance. Applications using the Pexels API must surface a prominent Pexels link and should credit contributors when possible.
@@ -89,13 +89,13 @@ node <SKILL_DIR>/scripts/resolve.mjs \
 
 Only `ffmpeg`/`ffprobe` are strictly required for the core media pipeline. Optional local providers:
 
-| Tool | Serves | Install |
-| --- | --- | --- |
-| `ffmpeg`/`ffprobe` | probing, transcode, cut, loudness and duration checks | system package |
-| `heygen` | catalog, TTS and avatar video | verified HeyGen CLI, then OAuth login |
-| `mflux-generate` | local FLUX image generation | see `scripts/lib/local-models.mjs` |
-| `parakeet-mlx` | local transcription | see `scripts/lib/local-models.mjs` |
-| `ltx-2-mlx` | local video generation | see `scripts/lib/local-models.mjs` |
-| `npx hyperframes` | Kokoro TTS, whisper.cpp fallback, background removal | HyperFrames CLI |
+| Tool               | Serves                                                | Install                               |
+| ------------------ | ----------------------------------------------------- | ------------------------------------- |
+| `ffmpeg`/`ffprobe` | probing, transcode, cut, loudness and duration checks | system package                        |
+| `heygen`           | catalog, TTS and avatar video                         | verified HeyGen CLI, then OAuth login |
+| `mflux-generate`   | local FLUX image generation                           | see `scripts/lib/local-models.mjs`    |
+| `parakeet-mlx`     | local transcription                                   | see `scripts/lib/local-models.mjs`    |
+| `ltx-2-mlx`        | local video generation                                | see `scripts/lib/local-models.mjs`    |
+| `npx hyperframes`  | Kokoro TTS, whisper.cpp fallback, background removal  | HyperFrames CLI                       |
 
 The RAM-graded local-model shortlist and exact invocation commands live in `scripts/lib/local-models.mjs`.

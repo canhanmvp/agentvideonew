@@ -26,7 +26,9 @@ export async function generateElevenLabsSfx(options = {}, deps = {}) {
     options.outputFormat || process.env.ELEVENLABS_SFX_OUTPUT_FORMAT || "mp3_44100_128";
   const modelId = options.modelId || process.env.ELEVENLABS_SFX_MODEL || "eleven_text_to_sound_v2";
   const durationSeconds = clampDuration(options.durationSeconds);
-  const promptInfluence = Number(options.promptInfluence ?? process.env.ELEVENLABS_SFX_PROMPT_INFLUENCE);
+  const promptInfluence = Number(
+    options.promptInfluence ?? process.env.ELEVENLABS_SFX_PROMPT_INFLUENCE,
+  );
 
   const body = {
     text,

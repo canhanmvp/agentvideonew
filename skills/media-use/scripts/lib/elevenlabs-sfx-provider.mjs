@@ -31,7 +31,9 @@ export async function elevenLabsSfxGenerate(intent, ctx = {}, deps = {}) {
       text: intent,
       apiKey: deps.apiKey,
       durationSeconds:
-        ctx.durationSeconds || process.env.ELEVENLABS_SFX_DURATION_SECONDS || inferSfxDuration(intent),
+        ctx.durationSeconds ||
+        process.env.ELEVENLABS_SFX_DURATION_SECONDS ||
+        inferSfxDuration(intent),
       promptInfluence: ctx.promptInfluence,
       loop: ctx.loop,
     },

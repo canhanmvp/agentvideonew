@@ -17,17 +17,17 @@ node <SKILL_DIR>/scripts/resolve.mjs --type <type> --intent "<description>" --pr
 
 Returns one line: `resolved <id> → <path> (<type>, <metadata>)`. Search noise stays on disk; remote media is frozen locally for deterministic rendering.
 
-| Type | One-line intent |
-| --- | --- |
-| `video` | Pexels stock footage first, then HeyGen/LTX generation |
-| `bgm` | background music retrieval or Lyria/MusicGen generation |
-| `sfx` | HeyGen retrieval → bundled library → ElevenLabs generation |
-| `image` | photos and backgrounds; search first, generation fallback |
-| `icon` | icons and symbols with transparent assets preferred |
-| `logo` | official marks: svgl → simple-icons → GitHub avatar → favicon |
-| `voice` | HeyGen → ElevenLabs → local Kokoro TTS |
+| Type    | One-line intent                                                     |
+| ------- | ------------------------------------------------------------------- |
+| `video` | Pexels stock footage first, then HeyGen/LTX generation              |
+| `bgm`   | background music retrieval or Lyria/MusicGen generation             |
+| `sfx`   | HeyGen retrieval → bundled library → ElevenLabs generation          |
+| `image` | photos and backgrounds; search first, generation fallback           |
+| `icon`  | icons and symbols with transparent assets preferred                 |
+| `logo`  | official marks: svgl → simple-icons → GitHub avatar → favicon       |
+| `voice` | HeyGen → ElevenLabs → local Kokoro TTS                              |
 | `grade` | measured correction candidate; broader polish uses Media Treatments |
-| `lut` | user-provided or explicitly chosen reusable validated `.cube` file |
+| `lut`   | user-provided or explicitly chosen reusable validated `.cube` file  |
 
 Pexels results preserve the asset page, creator name, and creator page in provenance. Surface a prominent Pexels link and contributor credit when the product UI presents those assets.
 
@@ -47,28 +47,28 @@ Do not generate a `.cube` LUT merely to encode exposure, shadows, contrast, or w
 
 Surface an opportunity only when a concrete signal is present:
 
-| Signal detected | Offer |
-| --- | --- |
-| Script or on-screen text with no voiceover | TTS voiceover through the audio engine |
-| Placeholder or irrelevant footage | Pexels stock `video` with local freeze and provenance |
-| Emoji or a styled `<div>` standing in for an icon | resolve a real `icon` |
-| Placeholder, tiny, or upscaled image | a better `image` |
-| Hard cuts with no sonic support | transition `sfx` |
-| Piece over ~10 seconds with no music bed | `bgm` |
-| Under/over-exposed or color-cast footage | corrective `grade` |
-| Flat or off-topic photographic media | one source-appropriate treatment |
+| Signal detected                                   | Offer                                                 |
+| ------------------------------------------------- | ----------------------------------------------------- |
+| Script or on-screen text with no voiceover        | TTS voiceover through the audio engine                |
+| Placeholder or irrelevant footage                 | Pexels stock `video` with local freeze and provenance |
+| Emoji or a styled `<div>` standing in for an icon | resolve a real `icon`                                 |
+| Placeholder, tiny, or upscaled image              | a better `image`                                      |
+| Hard cuts with no sonic support                   | transition `sfx`                                      |
+| Piece over ~10 seconds with no music bed          | `bgm`                                                 |
+| Under/over-exposed or color-cast footage          | corrective `grade`                                    |
+| Flat or off-topic photographic media              | one source-appropriate treatment                      |
 
 Rules: grounded, not generic; propose a specific fix; ask once per project; never silently mutate user media.
 
 ## Where to look
 
-| Task | Read |
-| --- | --- |
-| resolve / reuse / adopt / ingest / provider cascade | `references/resolve.md` |
-| provider keys, auth, local models, `--local-only`, `--provider` | `references/setup-providers.md` |
-| voiceover / TTS / music / SFX / captions / transcription | `references/audio.md` |
-| color grading, LUTs, smart grade | `references/grading.md` |
-| cut / reframe / transform | `references/operations.md` |
-| treatments, realtime effects, overlays, reveals | `references/media-treatments.md` |
-| remembered preferences and recipes | `references/memory.md` |
-| ownership, usage stats, telemetry, privacy | `references/meta.md` |
+| Task                                                            | Read                             |
+| --------------------------------------------------------------- | -------------------------------- |
+| resolve / reuse / adopt / ingest / provider cascade             | `references/resolve.md`          |
+| provider keys, auth, local models, `--local-only`, `--provider` | `references/setup-providers.md`  |
+| voiceover / TTS / music / SFX / captions / transcription        | `references/audio.md`            |
+| color grading, LUTs, smart grade                                | `references/grading.md`          |
+| cut / reframe / transform                                       | `references/operations.md`       |
+| treatments, realtime effects, overlays, reveals                 | `references/media-treatments.md` |
+| remembered preferences and recipes                              | `references/memory.md`           |
+| ownership, usage stats, telemetry, privacy                      | `references/meta.md`             |

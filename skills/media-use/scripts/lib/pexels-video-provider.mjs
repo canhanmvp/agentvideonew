@@ -18,9 +18,7 @@ const finiteOrNull = (value) => {
 export function inferVideoOrientation(intent = "") {
   const text = String(intent).toLowerCase();
   if (
-    /(9\s*:\s*16|vertical|portrait|tiktok|reels?|shorts?|video\s+d[oọ]c|khung\s+d[oọ]c)/i.test(
-      text,
-    )
+    /(9\s*:\s*16|vertical|portrait|tiktok|reels?|shorts?|video\s+d[oọ]c|khung\s+d[oọ]c)/i.test(text)
   )
     return "portrait";
   if (/(1\s*:\s*1|square|video\s+vu[oô]ng|khung\s+vu[oô]ng)/i.test(text)) return "square";
@@ -84,13 +82,13 @@ export function choosePexelsVideo(videos, options = {}) {
     if (maxDuration != null && duration > maxDuration) return false;
     return chooseVideoFile(video, options.size) !== null;
   });
-  const pool = filtered.length ? filtered : videos ?? [];
+  const pool = filtered.length ? filtered : (videos ?? []);
   if (!pool.length) return null;
 
   const target =
     minDuration != null && maxDuration != null
       ? (minDuration + maxDuration) / 2
-      : minDuration ?? maxDuration ?? null;
+      : (minDuration ?? maxDuration ?? null);
   const ranked = pool
     .map((video, index) => ({
       video,
