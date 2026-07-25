@@ -9,9 +9,19 @@ const clampInt = (value, min, max, fallback) => {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 };
 
+const finiteOrNull = (value) => {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
 export function inferVideoOrientation(intent = "") {
   const text = String(intent).toLowerCase();
-  if (/(9\s*:\s*16|vertical|portrait|tiktok|reels?|shorts?|video\s+d[oọ]c|khung\s+d[oọ]c)/i.test(text))
+  if (
+    /(9\s*:\s*16|vertical|portrait|tiktok|reels?|shorts?|video\s+d[oọ]c|khung\s+d[oọ]c)/i.test(
+      text,
+    )
+  )
     return "portrait";
   if (/(1\s*:\s*1|square|video\s+vu[oô]ng|khung\s+vu[oô]ng)/i.test(text)) return "square";
   if (/(16\s*:\s*9|landscape|horizontal|video\s+ngang|khung\s+ngang)/i.test(text))
@@ -65,8 +75,8 @@ function chooseVideoFile(video, size = "medium") {
 }
 
 export function choosePexelsVideo(videos, options = {}) {
-  const minDuration = Number.isFinite(options.minDuration) ? options.minDuration : null;
-  const maxDuration = Number.isFinite(options.maxDuration) ? options.maxDuration : null;
+  const minDuration = finiteOrNull(options.minDuration);
+  const maxDuration = finiteOrNull(options.maxDuration);
   const filtered = (videos ?? []).filter((video) => {
     const duration = Number(video?.duration);
     if (!Number.isFinite(duration)) return false;
@@ -111,10 +121,12 @@ export async function searchPexelsVideo(intent, ctx = {}, deps = {}) {
   const perPage = clampInt(ctx.perPage || process.env.PEXELS_VIDEO_PER_PAGE, 1, 80, 40);
 
   const inferred = inferDurationRange(intent);
-  const minDuration = Number(ctx.minDuration ?? process.env.PEXELS_VIDEO_MIN_DURATION ?? inferred.min);
-  const maxDuration = Number(ctx.maxDuration ?? process.env.PEXELS_VIDEO_MAX_DURATION ?? inferred.max);
-  const safeMin = Number.isFinite(minDuration) ? minDuration : null;
-  const safeMax = Number.isFinite(maxDuration) ? maxDuration : null;
+  const safeMin = finiteOrNull(
+    ctx.minDuration ?? process.env.PEXELS_VIDEO_MIN_DURATION ?? inferred.min,
+  );
+  const safeMax = finiteOrNull(
+    ctx.maxDuration ?? process.env.PEXELS_VIDEO_MAX_DURATION ?? inferred.max,
+  );
 
   const params = new URLSearchParams({
     query: String(intent).trim(),
@@ -128,7 +140,7 @@ export async function searchPexelsVideo(intent, ctx = {}, deps = {}) {
     headers: { Authorization: apiKey },
   });
   if (!response.ok) {
-    const detail = await response.text?.().catch(() => "");
+    const detail = response.text ? await response.text().catch(() => "") : "";
     throw new Error(
       `Pexels video search failed: HTTP ${response.status}${detail ? ` — ${detail.slice(0, 240)}` : ""}`,
     );
@@ -148,9 +160,9 @@ export async function searchPexelsVideo(intent, ctx = {}, deps = {}) {
     source: "search",
     metadata: {
       description: intent,
-      duration: Number(video.duration) || null,
-      width: Number(file.width) || Number(video.width) || null,
-      height: Number(file.height) || Number(video.height) || null,
+      duration: finiteOrNull(video.duration),
+      width: finiteOrNull(file.width) || finiteOrNull(video.width),
+      height: finiteOrNull(file.height) || finiteOrNull(video.height),
       provider: "pexels.video.search",
       provenance: {
         asset_id: video.id,
