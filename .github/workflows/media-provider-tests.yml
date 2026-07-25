@@ -1,0 +1,41 @@
+name: Media provider tests
+
+on:
+  pull_request:
+    paths:
+      - ".env.example"
+      - "skills/media-use/**"
+      - ".github/workflows/media-provider-tests.yml"
+  push:
+    branches:
+      - "feat/stock-audio-providers"
+    paths:
+      - ".env.example"
+      - "skills/media-use/**"
+      - ".github/workflows/media-provider-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  media-provider-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run provider unit tests
+        run: |
+          node --test \
+            skills/media-use/scripts/lib/registry.test.mjs \
+            skills/media-use/scripts/lib/pexels-video-provider.test.mjs \
+            skills/media-use/scripts/lib/elevenlabs-voice-provider.test.mjs \
+            skills/media-use/audio/scripts/lib/elevenlabs-sfx.test.mjs \
+            skills/media-use/audio/scripts/lib/sfx.test.mjs \
+            skills/media-use/audio/scripts/lib/tts.test.mjs
