@@ -23,19 +23,26 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Use Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
 
-      - name: Run provider unit tests
+      - name: Run complete skill test suite
+        shell: bash
         run: |
-          node --test \
-            skills/media-use/scripts/lib/registry.test.mjs \
-            skills/media-use/scripts/lib/pexels-video-provider.test.mjs \
-            skills/media-use/scripts/lib/elevenlabs-voice-provider.test.mjs \
-            skills/media-use/audio/scripts/lib/elevenlabs-sfx.test.mjs \
-            skills/media-use/audio/scripts/lib/sfx.test.mjs \
-            skills/media-use/audio/scripts/lib/tts.test.mjs
+          set +e
+          mapfile -t SKILLS_TESTS < <(find skills -type f -name "*.test.mjs" | sort)
+          node --test "${SKILLS_TESTS[@]}" > /tmp/skills-test.log 2>&1
+          STATUS=$?
+          if [ "$STATUS" -ne 0 ]; then
+            echo "=== Failure markers ==="
+            grep -nE "not ok|AssertionError|ERR_|error:|failure" /tmp/skills-test.log | tail -n 120 || true
+            echo "=== Log tail ==="
+            tail -n 180 /tmp/skills-test.log
+          else
+            tail -n 40 /tmp/skills-test.log
+          fi
+          exit "$STATUS"
