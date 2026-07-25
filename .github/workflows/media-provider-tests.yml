@@ -20,7 +20,7 @@ permissions:
 jobs:
   media-provider-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -30,19 +30,19 @@ jobs:
         with:
           node-version: 22
 
-      - name: Run complete skill test suite
+      - name: Run skill test files independently
         shell: bash
         run: |
-          set +e
+          set -euo pipefail
           mapfile -t SKILLS_TESTS < <(find skills -type f -name "*.test.mjs" | sort)
-          node --test "${SKILLS_TESTS[@]}" > /tmp/skills-test.log 2>&1
-          STATUS=$?
-          if [ "$STATUS" -ne 0 ]; then
-            echo "=== Failure markers ==="
-            grep -nE "not ok|AssertionError|ERR_|error:|failure" /tmp/skills-test.log | tail -n 120 || true
-            echo "=== Log tail ==="
-            tail -n 180 /tmp/skills-test.log
-          else
-            tail -n 40 /tmp/skills-test.log
-          fi
-          exit "$STATUS"
+          for test_file in "${SKILLS_TESTS[@]}"; do
+            echo "::group::$test_file"
+            if ! node --test "$test_file" > /tmp/test-file.log 2>&1; then
+              echo "::error file=$test_file::Skill test file failed"
+              cat /tmp/test-file.log
+              echo "::endgroup::"
+              exit 1
+            fi
+            tail -n 8 /tmp/test-file.log
+            echo "::endgroup::"
+          done
