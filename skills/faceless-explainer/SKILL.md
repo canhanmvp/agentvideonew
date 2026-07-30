@@ -15,7 +15,7 @@ Use this skill to turn a body of text into an explainer video: pick a design sys
 
 You are the orchestrator. Work in `videos/<project>/`. Run steps in order and pass each gate before continuing. User-gated steps are Step 0, Step 3, and Step 6. Read `../hyperframes-core/references/brief-contract.md` before Step 0 — it defines the gate types and how `BRIEF.md`'s `flow`/`storyboard` derive the mode that governs the Step 3/4/6 gates. Do every step yourself except Step 5, where you dispatch one sub-agent per frame. Do not put design or motion rules here; those live in the frame-worker sub-agent, this skill's local `../hyperframes-animation/rules/` + `../hyperframes-animation/blueprints/`, and `hyperframes-creative`.
 
-Workflow: Step 0 setup → `hyperframes.json`; Step 1 brief → `capture/extracted/`; Step 2 design system → `frame.md`; Step 3 storyboard/script → `STORYBOARD.md` and `SCRIPT.md`; Step 3.1 audio → `audio_meta.json`; Step 4 visual design → enriched `STORYBOARD.md`; Step 5 frames → `compositions/frames/NN-*.html` and `index.html`; Step 6 final render → `renders/video.mp4`.
+Workflow: Step 0 setup → `hyperframes.json`; Step 1 brief → `capture/extracted/`; optional Step 1.1 short-social strategy → `.hyperframes/creative-strategy.json`; Step 2 design system → `frame.md`; Step 3 storyboard/script → `STORYBOARD.md` and `SCRIPT.md`; Step 3.1 audio → `audio_meta.json`; Step 4 visual design → enriched `STORYBOARD.md`; Step 5 frames → `compositions/frames/NN-*.html` and `index.html`; Step 6 final render → `renders/video.mp4`.
 
 ---
 
@@ -61,11 +61,35 @@ Do **not** run `npx hyperframes capture` (there is no URL). Do not create `asset
 
 ---
 
+## Step 1.1: Short-social Creative Strategy
+
+Skip this step unless `BRIEF.md` contains `format_profile: short-social`.
+
+Read `../hyperframes-creative/references/short-social.md`. Ground claims in the
+brief and `capture/extracted/`, then write
+`.hyperframes/creative-strategy.json`: five angles, three hooks per angle, five
+adaptive templates, recommended styles, audio moods, and creative-fit scores.
+Preserve the input language.
+
+Collaborative mode: open Studio with `?view=strategy` and let the user save the
+selection. Autonomous mode: choose the highest eligible creative-fit candidate
+and record a concrete reason. Then run:
+
+`npx hyperframes strategy check . --require-selection --json`
+
+**Gate:** the command exits 0 before Step 2 or storyboard authoring.
+
+---
+
 ## Step 2: Design System
 
 Goal: Choose one shipped frame preset; a script turns it into this video's `frame.md` + caption skin.
 
-When `BRIEF.md` names a `style_preset` — the user picked it by eye from the showcases at the intent layer — use it; the judgment call is yours only when the brief is silent. Then you make the one call — **which preset**: read `../hyperframes-creative/references/design-spec.md` and browse `../hyperframes-creative/frame-presets/`; pick the preset whose look best fits the topic, tone, and audience. Then run:
+When short-social strategy exists, its selected style wins: materialize its
+tokens into `frame.md` following
+`../hyperframes-creative/references/short-social.md`, then skip the preset
+command below. Otherwise, when
+`BRIEF.md` names a `style_preset` — the user picked it by eye from the showcases at the intent layer — use it; the judgment call is yours only when the brief is silent. Then you make the one call — **which preset**: read `../hyperframes-creative/references/design-spec.md` and browse `../hyperframes-creative/frame-presets/`; pick the preset whose look best fits the topic, tone, and audience. Then run:
 
 ```bash
 node <SKILL_DIR>/scripts/build-frame.mjs --preset <name> --hyperframes .
@@ -75,7 +99,9 @@ The script does the rest deterministically: copies the preset's `FRAME.md` → `
 
 A faceless explainer usually has **no brand colors/fonts** (`tokens.json` colors/fonts empty) → the script keeps the preset's own palette, a complete shippable design. Only when the user named brand colors/fonts add them to `tokens.json` before running, and only adjust `frame.md` by hand afterward if a mapping truly needs it.
 
-**Gate:** `build-frame.mjs` exited 0 — `frame.md` exists from a named preset, and (when the preset ships one) `.hyperframes/caption-skin.html` exists as the caption skin source; the chosen preset was recorded as a preference (`--key style_preset --workflow <this workflow>`, brief contract § 2).
+**Gate:** short-social has `frame.md` matching the selected strategy style; all
+other profiles require `build-frame.mjs` to exit 0, `frame.md` from a named
+preset, and the shipped caption skin when present.
 
 ---
 
@@ -84,6 +110,11 @@ A faceless explainer usually has **no brand colors/fonts** (`tokens.json` colors
 Goal: Turn the text into an approved frame-by-frame teaching plan.
 
 Read `../hyperframes-creative/references/story-spine.md` (hook language, value-before-evidence, storyboard-as-proposal), `references/story-design.md`, `../hyperframes-animation/blueprints-index.md`, `../hyperframes-core/references/storyboard-format.md`, and `../hyperframes-core/references/script-format.md`. Use them to write `STORYBOARD.md` and, when narration is needed, `SCRIPT.md`. Set the frontmatter `duration:` from the brief's `length` — a rough expectation; assembly reports where the cut lands against it.
+
+For short-social, also read the selected strategy, use its adaptive template
+instead of the default arc, and write `strategy`, `angle`, `hook`, `template`,
+`style`, and selected audio mood into storyboard frontmatter. Do not alter the
+selected hook or strengthen its evidence-backed promise.
 
 Use `story-design.md` for the explainer structure (concept / how-to / listicle / story), hook strategy, clarity techniques, emotional beats, the type-enum mapping, and `VO_MODE`. The video's sequence comes from **narrative design, not the input text's paragraph order** — reorder, merge, omit, compress. As a **soft guide**, consult the role→blueprint menu in `../hyperframes-animation/blueprints-index.md`: for each beat, write the voiceover in the shape its candidate blueprint implies and tag that candidate `blueprint:` id when one fits. Teaching truth still decides which beats exist — never force a beat to fit a blueprint, and never invent a beat just because a proven shape is available. Faceless visuals are invented downstream, so frames do **not** carry an asset inventory: leave `asset_candidates` empty unless the user supplied a real `public/<basename>` image. Use the exact required fields from the storyboard and script references.
 

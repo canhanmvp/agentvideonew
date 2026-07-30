@@ -133,6 +133,7 @@ const commandLoaders = {
   lint: () => import("./commands/lint.js").then((m) => m.default),
   check: () => import("./commands/check.js").then((m) => m.default),
   beats: () => import("./commands/beats.js").then((m) => m.default),
+  strategy: () => import("./commands/strategy.js").then((m) => m.default),
   inspect: () => import("./commands/inspect.js").then((m) => m.default),
   keyframes: () => import("./commands/keyframes.js").then((m) => m.default),
   layout: () => import("./commands/layout.js").then((m) => m.default),

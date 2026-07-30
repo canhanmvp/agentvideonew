@@ -50,6 +50,7 @@ import { StudioPlaybackProvider, StudioShellProvider } from "./contexts/StudioCo
 import { PanelLayoutProvider } from "./contexts/PanelLayoutContext";
 import { ViewModeProvider, useViewModeState } from "./contexts/ViewModeContext";
 import { StoryboardView } from "./components/storyboard/StoryboardView";
+import { CreativeStrategyView } from "./components/strategy/CreativeStrategyView";
 import { FileManagerProvider } from "./contexts/FileManagerContext";
 import { DomEditProvider } from "./contexts/DomEditContext";
 import { StudioSplash } from "./components/StudioSplash";
@@ -500,8 +501,11 @@ export function StudioApp() {
                       onSelectComposition={handleSelectComposition}
                     />
                   )}
+                  {viewModeValue.viewMode === "strategy" && (
+                    <CreativeStrategyView projectId={projectId} />
+                  )}
                   <EditorShell
-                    hidden={viewModeValue.viewMode === "storyboard"}
+                    hidden={viewModeValue.viewMode !== "timeline"}
                     left={
                       <StudioLeftSidebar
                         leftSidebarRef={leftSidebarRef}

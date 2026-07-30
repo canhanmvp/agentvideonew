@@ -16,6 +16,11 @@ YAML block at the top. Unknown keys are kept under `globals.extra`.
 | `arc`      | Narrative arc                                                     | `Hook → Problem → Solution → Proof → CTA` |
 | `audience` | Who it's for                                                      | `indie devs on X`                         |
 | `mode`     | Interaction mode (see `brief-contract.md`; default collaborative) | `autonomous`                              |
+| `strategy` | Project-relative strategy manifest used to create this plan       | `.hyperframes/creative-strategy.json`     |
+| `angle`    | Selected creative angle id                                        | `hidden-cost`                             |
+| `hook`     | Selected hook candidate id                                        | `hidden-cost-h2`                          |
+| `template` | Selected adaptive template id                                     | `insight-loop`                            |
+| `style`    | Selected style id materialized into `frame.md`                    | `shadow-cut`                              |
 
 Set `duration` from the brief's `length` when the storyboard is first written. It is an expectation, not a gate: assembly reports where the cut actually lands against it and flags a large gap — judge whether the drift serves the piece, and update the value when the intended length genuinely changes.
 
@@ -32,6 +37,7 @@ One `## Frame N — Title` heading per frame (`Frame` / `Beat` / `Scene` accepte
 | `scene`         | one-line contact-sheet caption (aliases `description` / `summary` / `caption`)                                |
 | `voiceover`     | the frame's narration _guide_ (aliases `vo` / `voice_over` / `narration`)                                     |
 | `poster`        | seconds to seek for the tile poster (past the intro animation)                                                |
+| `sfx`           | comma-separated cues; optional `@seconds` offset, e.g. `whoosh@0.35, impact-bass-1@1.20`                      |
 | _any other key_ | kept verbatim under the frame's `extra` — a workflow carries its own per-frame data (effects, assets, …) here |
 
 ## Parsed manifest

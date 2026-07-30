@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const script = new URL("./audio.mjs", import.meta.url).pathname;
+const script = fileURLToPath(new URL("./audio.mjs", import.meta.url));
 
 // The header of this adapter declares it "intentionally identical across the
 // reusing skills" — pin that contract so a fix landing in one copy can't

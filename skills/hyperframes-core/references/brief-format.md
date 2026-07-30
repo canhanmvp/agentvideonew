@@ -13,6 +13,7 @@ YAML block at the top: one key per deterministic field — the run's shape first
 | `workflow`                                                                | the executing workflow (companion runs record `general-video`)                                                             | `faceless-explainer`        |
 | `flow`                                                                    | `automation` — the matched workflow's pipeline · `companion` — co-creation in `/general-video`                             | `automation`                |
 | `storyboard`                                                              | `yes` — plan, sketches, and build reviewed on the live board (`review-loop.md`) · `no` — one shot from the confirmed brief | `yes`                       |
+| `format_profile`                                                          | Optional specialization. `short-social` enables the 9:16, 15–60s creative-strategy layer; absent keeps legacy behavior     | `short-social`              |
 | `message`                                                                 | the ONE thing the video must communicate                                                                                   | `"Ship it in an afternoon"` |
 | `destination` / `aspect` / `language` / `audience` / `length` / `angle` … | the registry fields this route confirmed                                                                                   | —                           |
 

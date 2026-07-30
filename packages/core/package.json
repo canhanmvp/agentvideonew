@@ -106,6 +106,12 @@
       "import": "./src/storyboard/index.ts",
       "types": "./src/storyboard/index.ts"
     },
+    "./creative-strategy": {
+      "bun": "./src/creative-strategy/index.ts",
+      "node": "./dist/creative-strategy/index.js",
+      "import": "./src/creative-strategy/index.ts",
+      "types": "./src/creative-strategy/index.ts"
+    },
     "./runtime": "./dist/hyperframe.runtime.iife.js",
     "./runtime/clipTree": {
       "bun": "./src/runtime/clipTree.ts",
@@ -337,6 +343,10 @@
       "./storyboard": {
         "import": "./dist/storyboard/index.js",
         "types": "./dist/storyboard/index.d.ts"
+      },
+      "./creative-strategy": {
+        "import": "./dist/creative-strategy/index.js",
+        "types": "./dist/creative-strategy/index.d.ts"
       },
       "./runtime": "./dist/hyperframe.runtime.iife.js",
       "./runtime/clipTree": {

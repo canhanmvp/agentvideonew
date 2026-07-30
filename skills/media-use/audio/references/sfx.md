@@ -16,7 +16,10 @@ There is no separate `npx hyperframes sfx` command. Workflows declare cues in `a
     {
       "id": "scene-3",
       "text": "Your progress is now synchronized.",
-      "sfx": ["clean digital whoosh", "soft confirmation chime"]
+      "sfx": [
+        "clean digital whoosh",
+        { "name": "soft confirmation chime", "offset_s": 0.35, "role": "reveal" }
+      ]
     }
   ]
 }
@@ -30,13 +33,17 @@ The engine writes:
   "name": "clean digital whoosh",
   "file": "assets/sfx/clean-digital-whoosh.mp3",
   "source": "heygen" | "local" | "elevenlabs",
-  "offset_s": 0,
+  "offset_s": 0.35,
+  "role": "reveal",
   "duration_s": 0.8,
   "volume": 0.35
 }
 ```
 
 The same cue name is resolved once per run and reused across multiple scene IDs.
+String cues remain backward compatible and imply `offset_s: 0`. Object cues
+place the sound relative to the line/frame start and may retain a semantic
+`role` for downstream polish.
 
 ## HeyGen retrieval
 

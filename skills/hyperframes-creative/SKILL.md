@@ -24,7 +24,7 @@ For motion patterns, scene blueprints, transitions, and CSS marker effects, use 
    - Named style or mood → `references/visual-styles.md`
    - Fast defaults → `references/house-style.md`
    - Interactive selection → `references/design-picker.md`
-3. For multi-scene work, plan beats and rhythm before writing HTML → `references/beat-direction.md`. For scene transitions, jump to `hyperframes-animation/transitions/`.
+3. For multi-scene work, plan beats and rhythm before writing HTML → `references/beat-direction.md`. For scene transitions, jump to `hyperframes-animation/transitions/`. When `BRIEF.md` opts into `format_profile: short-social`, read `references/short-social.md` before choosing style or writing the storyboard.
 4. For motion-heavy work, read `references/motion-principles.md` (high-level guardrails), then go to `hyperframes-animation` for atomic rules.
 
 ## Routing
@@ -44,6 +44,7 @@ For motion patterns, scene blueprints, transitions, and CSS marker effects, use 
 | High-level motion guardrails and GSAP-quality rules                           | `references/motion-principles.md`              |
 | Font selection, pairings, rendered-video type guardrails                      | `references/typography.md`                     |
 | Story doctrine — hook language, value-before-evidence, storyboard-as-proposal | `references/story-spine.md`                    |
+| Opt-in 9:16, 15–60s strategy, hook test, templates, and full polish           | `references/short-social.md`                   |
 | Script pacing, tone, openings, number pronunciation                           | `references/narration.md`                      |
 | Precomputed audio bands mapped to motion                                      | `references/audio-reactive.md`                 |
 

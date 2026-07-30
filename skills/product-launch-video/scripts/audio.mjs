@@ -34,6 +34,13 @@ const flag = (argv, name, def) => {
   return i >= 0 && i + 1 < argv.length ? argv[i + 1] : def;
 };
 const pad2 = (n) => String(n).padStart(2, "0");
+const parseSfxCue = (raw) => {
+  const value = String(raw).trim();
+  if (!value) return null;
+  const timed = value.match(/^(.*?)@(\d+(?:\.\d+)?)$/);
+  if (!timed) return value;
+  return { name: timed[1].trim(), offset_s: Number(timed[2]) };
+};
 
 // SCRIPT.md → [{ frame, text }]. `## … (Frame N)` opens a line; `**key:**` rows
 // are metadata; the indented block is the spoken text (the only TTS input).
@@ -105,8 +112,10 @@ function toProductLaunchMeta(neutral) {
     : null;
   const sfx = (neutral.sfx ?? []).map((s) => ({
     frame: Number(s.id),
+    name: s.name,
     file: s.file,
     offset_s: s.offset_s ?? 0,
+    ...(s.role ? { role: s.role } : {}),
     duration_s: s.duration_s ?? 1,
     volume: s.volume ?? 0.35,
   }));
@@ -191,14 +200,11 @@ function runFetchSfx(argv) {
   if (!existsSync(storyboardPath)) die(`STORYBOARD.md not found at ${storyboardPath}`);
   const manifest = parseStoryboard(readFileSync(storyboardPath, "utf8"));
 
-  // Per-frame `sfx:` cues (comma-separated) → engine lines carrying only sfx.
+  // Per-frame `sfx:` cues: `whoosh, impact-bass-1@1.20`.
   const lines = [];
   for (const f of manifest.frames) {
-    const names = (f.extra?.sfx ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (names.length && f.number != null) lines.push({ id: pad2(f.number), sfx: names });
+    const cues = (f.extra?.sfx ?? "").split(",").map(parseSfxCue).filter(Boolean);
+    if (cues.length && f.number != null) lines.push({ id: pad2(f.number), sfx: cues });
   }
 
   const neutral = neutralPath(outPath);

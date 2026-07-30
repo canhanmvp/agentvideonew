@@ -120,8 +120,8 @@ async function generateFromElevenLabs({ name, hyperframesDir, generate, probe })
   };
 }
 
-// cues: [{ id, name }] (id = the line/frame/scene the cue fires in). Returns
-// { sfx: [{ id, name, file, source, offset_s, duration_s, volume }], anomalies }.
+// cues: [{ id, name, offset_s?, role? }] (id = the line/frame/scene the cue fires in). Returns
+// { sfx: [{ id, name, file, source, offset_s, role?, duration_s, volume }], anomalies }.
 export async function resolveSfx(
   { cues, heygenOK, headers, hyperframesDir, sfxLibDir },
   deps = {},
@@ -130,7 +130,7 @@ export async function resolveSfx(
   const anomalies = [];
   const seen = new Set();
   const uniq = (cues || []).filter((cue) => {
-    const key = `${cue.id}:${cue.name}`;
+    const key = `${cue.id}:${cue.name}:${cue.offset_s ?? 0}:${cue.role ?? ""}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -142,11 +142,11 @@ export async function resolveSfx(
   const probe = deps.ffprobeDuration || ffprobeDuration;
   const byName = new Map();
 
-  for (const { id, name } of uniq) {
+  for (const { id, name, offset_s = 0, role } of uniq) {
     const cacheKey = slug(name);
     const cached = byName.get(cacheKey);
     if (cached) {
-      sfx.push({ ...cached, id, name });
+      sfx.push({ ...cached, id, name, offset_s, ...(role ? { role } : {}) });
       continue;
     }
 
@@ -188,7 +188,7 @@ export async function resolveSfx(
     }
 
     byName.set(cacheKey, record);
-    sfx.push({ ...record, id, name });
+    sfx.push({ ...record, id, name, offset_s, ...(role ? { role } : {}) });
   }
 
   return { sfx, anomalies };

@@ -612,7 +612,14 @@ audio.sfx.forEach((cue, i) => {
     anomalies.push(`sfx ${rel} not on disk — skipped`);
     return;
   }
-  const t = r3(host.start + (cue.offset_s ?? 0));
+  const offset = Number(cue.offset_s ?? 0);
+  if (!Number.isFinite(offset) || offset < 0 || offset >= host.durationSeconds) {
+    anomalies.push(
+      `sfx ${rel}: offset ${cue.offset_s} is outside frame ${cue.frame} duration ${host.durationSeconds}s — skipped`,
+    );
+    return;
+  }
+  const t = r3(host.start + offset);
   const dur = r3(cue.duration_s ?? 1);
   const vol = cue.volume != null ? cue.volume : 0.35;
   if (sfxEmitted === 0) body.push(`      <!-- SFX -->`);

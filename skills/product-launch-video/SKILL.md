@@ -17,7 +17,7 @@ Use this skill to capture a product, understand its brand, plan a launch video, 
 
 You are the orchestrator. Work in `videos/<project>/`. Run steps in order and pass each gate before continuing. User-gated steps are Step 0, Step 3, and Step 6. Read `../hyperframes-core/references/brief-contract.md` before Step 0 — it defines the gate types and how `BRIEF.md`'s `flow`/`storyboard` derive the mode that governs the Step 3/4/6 gates. Do every step yourself except Step 5, where you dispatch one sub-agent per frame. Do not put design or motion rules here; those live in the frame-worker sub-agent, this skill's local `../hyperframes-animation/rules/` + `../hyperframes-animation/blueprints/`, and `hyperframes-creative`.
 
-Workflow: Step 0 setup -> `hyperframes.json`; Step 1 capture -> `capture/`; Step 2 design system -> `frame.md`; Step 3 storyboard/script -> `STORYBOARD.md` and `SCRIPT.md`; Step 3.1 audio -> `audio_meta.json`; Step 4 visual design -> enriched `STORYBOARD.md`; Step 5 frames -> `compositions/frames/NN-*.html` and `index.html`; Step 6 final render -> `renders/video.mp4`.
+Workflow: Step 0 setup -> `hyperframes.json`; Step 1 capture -> `capture/`; optional Step 1.1 short-social strategy -> `.hyperframes/creative-strategy.json`; Step 2 design system -> `frame.md`; Step 3 storyboard/script -> `STORYBOARD.md` and `SCRIPT.md`; Step 3.1 audio -> `audio_meta.json`; Step 4 visual design -> enriched `STORYBOARD.md`; Step 5 frames -> `compositions/frames/NN-*.html` and `index.html`; Step 6 final render -> `renders/video.mp4`.
 
 ---
 
@@ -62,9 +62,31 @@ No-capture path: create `capture/extracted/tokens.json`, `capture/extracted/visi
 
 ---
 
+## Step 1.1: Short-social Creative Strategy
+
+Skip this step unless `BRIEF.md` contains `format_profile: short-social`.
+
+Read `../hyperframes-creative/references/short-social.md`. Treat captured copy,
+product facts, and source URLs as evidence. Write
+`.hyperframes/creative-strategy.json` with five angles, three hooks per angle,
+all five duration-adapted templates, style/audio recommendations, and
+creative-fit scores. Preserve the brief language.
+
+Collaborative mode: open Studio at `?view=strategy` for selection. Autonomous
+mode: select the highest eligible candidate and record the evidence-based
+reason. Gate before design/storyboard:
+
+`npx hyperframes strategy check . --require-selection --json`
+
+---
+
 ## Step 2: Design System
 
 Goal: Choose one shipped frame preset; a script turns it into this video's `frame.md` + caption skin.
+
+For short-social, the selected strategy style is authoritative: materialize its
+tokens into `frame.md` while preserving captured brand constraints, then skip
+the preset command below. Otherwise use the normal preset choice below.
 
 When `BRIEF.md` names a `style_preset` — the user picked it by eye from the showcases at the intent layer — use it; the judgment call is yours only when the brief is silent. Then you make the one call — **which preset**: read `../hyperframes-creative/references/design-spec.md` and pick the preset whose look best fits the brand and brief. Then run:
 
@@ -76,7 +98,9 @@ The script does the rest deterministically: copies the preset's `FRAME.md` → `
 
 `tokens.json` with no brand colors/fonts (e.g. no capture) → the script keeps the preset's own palette, a complete shippable design. If the brief names brand colors/fonts the capture missed, add them to `capture/extracted/tokens.json` before running (or use the user's `design.md` to populate it); only adjust `frame.md` by hand afterward if a mapping truly needs it.
 
-**Gate:** `build-frame.mjs` exited 0 — `frame.md` exists from a named preset, and (when the preset ships one) `.hyperframes/caption-skin.html` exists as the caption skin source; the chosen preset was recorded as a preference (`--key style_preset --workflow <this workflow>`, brief contract § 2).
+**Gate:** short-social has `frame.md` matching the selected strategy style; all
+other profiles require `build-frame.mjs` to exit 0, `frame.md` from a named
+preset, and the shipped caption skin when present.
 
 ---
 
@@ -85,6 +109,10 @@ The script does the rest deterministically: copies the preset's `FRAME.md` → `
 Goal: Turn the brief and captured material into an approved frame-by-frame story plan.
 
 Read `../hyperframes-creative/references/story-spine.md` (hook language, value-before-evidence, storyboard-as-proposal), `references/story-design.md`, `../hyperframes-animation/blueprints-index.md`, `../hyperframes-core/references/storyboard-format.md`, and `../hyperframes-core/references/script-format.md`. Use them to write `STORYBOARD.md` and, when narration is needed, `SCRIPT.md`. Set the frontmatter `duration:` from the brief's `length` — a rough expectation; assembly reports where the cut lands against it.
+
+For short-social, the selected adaptive template owns the arc. Trace
+`strategy`, `angle`, `hook`, `template`, `style`, and audio mood in storyboard
+frontmatter; every scene carries one narrative job and one focal reveal.
 
 Use `story-design.md` for story blueprint, hook, persuasion logic, beats, `VO_MODE`, and asset choices. As a **soft guide**, consult the role→blueprint menu in `../hyperframes-animation/blueprints-index.md`: for each beat, note a candidate blueprint id when one fits. Story truth still decides which beats exist — never force a beat to fit a blueprint, and never invent a beat just because a proven shape is available. Choose each visual frame's `asset_candidates` from `capture/extracted/asset-descriptions.md` (the canonical inventory) — don't browse raw `capture/assets/`. Do not ask the user to pick assets unless that inventory is missing or unusable. Use the exact required fields from the storyboard and script references.
 

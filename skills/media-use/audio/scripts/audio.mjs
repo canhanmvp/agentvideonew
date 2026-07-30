@@ -18,7 +18,8 @@
 //     "provider": "auto",          // auto|heygen|elevenlabs|kokoro (override: --provider)
 //     "lang": "en", "speed": 1.0,
 //     "lines": [                   // one TTS unit each; id joins back to the caller's model
-//       { "id": "01", "text": "...", "sfx": ["whoosh", "ui click"] }
+//       { "id": "01", "text": "...",
+//         "sfx": ["whoosh", { "name": "ui click", "offset_s": 0.35, "role": "reveal" }] }
 //     ],
 //     "bgm": { "mode": "retrieve", // retrieve|generate|none (override: --bgm-mode / --no-bgm)
 //              "query": "calm cinematic underscore",   // mood for retrieval
@@ -255,10 +256,21 @@ if (only.has("bgm")) {
 // ── SFX ─────────────────────────────────────────────────────────────────────
 let sfx = prev.sfx ?? [];
 if (only.has("sfx")) {
+  const normalizeCue = (lineId, cue) => {
+    if (typeof cue === "string") {
+      const name = cue.trim();
+      return name ? { id: String(lineId), name, offset_s: 0 } : null;
+    }
+    if (!cue || typeof cue !== "object" || Array.isArray(cue)) return null;
+    const name = String(cue.name ?? "").trim();
+    if (!name) return null;
+    const rawOffset = Number(cue.offset_s ?? 0);
+    const offset_s = Number.isFinite(rawOffset) ? Math.max(0, r3(rawOffset)) : 0;
+    const role = typeof cue.role === "string" && cue.role.trim() ? cue.role.trim() : undefined;
+    return { id: String(lineId), name, offset_s, ...(role ? { role } : {}) };
+  };
   const cues = lines.flatMap((l) =>
-    (Array.isArray(l.sfx) ? l.sfx : [])
-      .map((name) => ({ id: String(l.id), name: String(name).trim() }))
-      .filter((c) => c.name),
+    (Array.isArray(l.sfx) ? l.sfx : []).map((cue) => normalizeCue(l.id, cue)).filter(Boolean),
   );
   const res = await resolveSfx({ cues, heygenOK, headers, hyperframesDir, sfxLibDir });
   sfx = res.sfx;

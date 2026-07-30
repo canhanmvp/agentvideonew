@@ -12,28 +12,28 @@ import {
 /**
  * Top-level Studio view mode.
  *
- * `timeline` is the existing NLE/preview stage. `storyboard` replaces that stage
- * with the storyboard contact sheet. The mode is mirrored to the `?view=` query
+ * `timeline` is the existing NLE/preview stage. `strategy` and `storyboard`
+ * replace that stage with planning surfaces. The mode is mirrored to the `?view=` query
  * param so it survives reloads and — importantly — so an agent can deep-link the
  * user straight into the storyboard by navigating the tab to `?view=storyboard`.
  */
-export type StudioViewMode = "timeline" | "storyboard";
+export type StudioViewMode = "strategy" | "storyboard" | "timeline";
 export type ViewModeGuard = (nextMode: StudioViewMode) => boolean;
 
 const VIEW_QUERY_PARAM = "view";
 
 function readViewModeFromUrl(): StudioViewMode {
   if (typeof window === "undefined") return "timeline";
-  return new URLSearchParams(window.location.search).get(VIEW_QUERY_PARAM) === "storyboard"
-    ? "storyboard"
-    : "timeline";
+  const requested = new URLSearchParams(window.location.search).get(VIEW_QUERY_PARAM);
+  if (requested === "strategy" || requested === "storyboard") return requested;
+  return "timeline";
 }
 
 function writeViewModeToUrl(mode: StudioViewMode): void {
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
-  if (mode === "storyboard") {
-    url.searchParams.set(VIEW_QUERY_PARAM, "storyboard");
+  if (mode !== "timeline") {
+    url.searchParams.set(VIEW_QUERY_PARAM, mode);
   } else {
     url.searchParams.delete(VIEW_QUERY_PARAM);
   }

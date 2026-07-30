@@ -92,6 +92,12 @@
       "types": "./dist/storyboard/index.d.ts",
       "environments": ["browser", "bun", "node"]
     },
+    "./creative-strategy": {
+      "source": "./src/creative-strategy/index.ts",
+      "runtime": "./dist/creative-strategy/index.js",
+      "types": "./dist/creative-strategy/index.d.ts",
+      "environments": ["browser", "bun", "node"]
+    },
     "./runtime": {
       "source": "./dist/hyperframe.runtime.iife.js",
       "runtime": "./dist/hyperframe.runtime.iife.js",

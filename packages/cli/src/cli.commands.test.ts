@@ -35,6 +35,14 @@ describe("CLI command registration", () => {
     );
   });
 
+  it("registers the short-social strategy gate in root help", () => {
+    const loaders = commandLoaderBlock();
+    expect(loaders).toMatch(/\bstrategy:\s*\(\)\s*=>\s*import\("\.\/commands\/strategy\.js"\)/);
+    expect(helpSource).toContain(
+      '["strategy", "Validate short-social creative strategy before storyboard generation"]',
+    );
+  });
+
   it("registers media-treatment as the only treatment authoring command", () => {
     const loaders = commandLoaderBlock();
     expect(loaders).toContain('"media-treatment"');

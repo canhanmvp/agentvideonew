@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,7 @@ import { resolveSfx } from "./lib/sfx.mjs";
 // on a subtree move. Offline (heygenOK:false), no network.
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const enginePath = fileURLToPath(new URL("./audio.mjs", import.meta.url));
 const sfxLibDir = join(HERE, "..", "assets", "sfx"); // same offset the engine uses
 
 test("bundled SFX library resolves from the relocated path", async () => {
@@ -43,6 +45,55 @@ test("an unknown cue is reported, not fatal", async () => {
     });
     assert.equal(sfx.length, 0);
     assert.ok(anomalies.some((a) => /not in bundled library/.test(a)));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("object SFX request preserves offset_s and role in audio_meta", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mu-audio-offset-"));
+  try {
+    const requestPath = join(dir, "audio_request.json");
+    const outPath = join(dir, "audio_meta.json");
+    writeFileSync(
+      requestPath,
+      JSON.stringify({
+        lines: [
+          {
+            id: "scene-1",
+            text: "",
+            sfx: [{ name: "whoosh", offset_s: 0.35, role: "reveal" }],
+          },
+        ],
+        bgm: { mode: "none" },
+      }),
+    );
+    const result = spawnSync(
+      process.execPath,
+      [
+        enginePath,
+        "--request",
+        requestPath,
+        "--hyperframes",
+        dir,
+        "--out",
+        outPath,
+        "--only",
+        "sfx",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const meta = JSON.parse(readFileSync(outPath, "utf8"));
+    assert.deepEqual(
+      {
+        id: meta.sfx[0].id,
+        name: meta.sfx[0].name,
+        offset_s: meta.sfx[0].offset_s,
+        role: meta.sfx[0].role,
+      },
+      { id: "scene-1", name: "whoosh", offset_s: 0.35, role: "reveal" },
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

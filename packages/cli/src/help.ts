@@ -39,6 +39,7 @@ const GROUPS: Group[] = [
         "Runtime-validate a composition in headless Chrome (JS errors, missing assets, contrast)",
       ],
       ["beats", "Detect beats in the music track and write beats/<audio>.json"],
+      ["strategy", "Validate short-social creative strategy before storyboard generation"],
       ["inspect", "Inspect rendered visual layout across the timeline"],
       ["keyframes", "Inspect keyframes and render onion-shot diagnostics"],
       ["snapshot", "Capture key frames as PNG screenshots for visual verification"],

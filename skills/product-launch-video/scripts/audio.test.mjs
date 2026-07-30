@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const script = new URL("./audio.mjs", import.meta.url).pathname;
+const script = fileURLToPath(new URL("./audio.mjs", import.meta.url));
 
 function runAudio({ args = [], env = {} } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "product-launch-audio-"));

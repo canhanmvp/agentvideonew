@@ -123,3 +123,34 @@ test("the same generated cue name is reused across multiple ids", async () => {
     assert.notEqual(sfx[0].id, sfx[1].id);
   });
 });
+
+test("preserves independent offset and role metadata while reusing one asset", async () => {
+  await withDirs(async ({ libDir, projDir }) => {
+    writeFileSync(
+      join(libDir, "manifest.json"),
+      JSON.stringify({ whoosh: { file: "whoosh.mp3", duration: 0.8 } }),
+    );
+    writeFileSync(join(libDir, "whoosh.mp3"), "ID3-fake-bytes");
+    const { sfx } = await resolveSfx(
+      {
+        cues: [
+          { id: "s1", name: "whoosh", offset_s: 0.35, role: "reveal" },
+          { id: "s1", name: "whoosh", offset_s: 1.2, role: "impact" },
+        ],
+        heygenOK: false,
+        hyperframesDir: projDir,
+        sfxLibDir: libDir,
+      },
+      { elevenlabsOK: false },
+    );
+    assert.equal(sfx.length, 2);
+    assert.deepEqual(
+      sfx.map(({ offset_s, role }) => ({ offset_s, role })),
+      [
+        { offset_s: 0.35, role: "reveal" },
+        { offset_s: 1.2, role: "impact" },
+      ],
+    );
+    assert.equal(sfx[0].file, sfx[1].file);
+  });
+});

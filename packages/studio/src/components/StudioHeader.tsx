@@ -144,6 +144,7 @@ function HyperframesLogo() {
 }
 
 const VIEW_MODE_OPTIONS: Array<{ mode: StudioViewMode; label: string }> = [
+  { mode: "strategy", label: "Strategy" },
   { mode: "storyboard", label: "Storyboard" },
   { mode: "timeline", label: "Preview" },
 ];
